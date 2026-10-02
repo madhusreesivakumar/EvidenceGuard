@@ -14,7 +14,7 @@ const auditLogSchema = new mongoose.Schema({
       'REGISTER', 'LOGIN', 'LOGOUT', 'UPLOAD', 'HASH_GENERATED',
       'VERIFY', 'TAMPER_DETECTED', 'DELETE', 'BLOCK_CREATED',
       'BLOCKCHAIN_VALIDATED', 'USER_CREATED', 'ROLE_CHANGED', 'QR_GENERATED',
-      'USER_DEACTIVATED'
+      'USER_DEACTIVATED', 'KEY_REGISTERED', 'KEY_REVOKED'
     ] 
   },
   evidenceId: String,

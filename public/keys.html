@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Keys - EvidenceGuard</title>
+  <meta name="description" content="Manage officer ECDSA P-256 digital signature keys, encrypted local storage, backup, and revocation.">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+  <script src="keys-client.js" defer></script>
+</head>
+<body data-page="keys">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar Navigation">
+      <div class="sidebar-header">
+        <div class="logo-icon" aria-hidden="true">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon" aria-hidden="true">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon" aria-hidden="true">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon" aria-hidden="true">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon" aria-hidden="true">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📋</span> Audit Trail</a>
+        <a href="keys.html" class="nav-item active"><span class="nav-icon" aria-hidden="true">🔑</span> Digital Keys</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon" aria-hidden="true">👥</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon" aria-hidden="true">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--status-tampered); display:block; margin-top:10px;">🚪 Logout</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger" aria-label="Toggle navigation menu">☰</button>
+          <span style="font-size:1.1rem; font-weight:700; color:var(--text-main);">EvidenceGuard</span>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock" aria-label="Current system time"></span>
+          <div class="user-area">
+            <span class="badge badge-verified" id="systemStatusBadge">Keys Ready</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content" style="overflow-y: auto; padding: 2rem 1.5rem;">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+          <div>
+            <div class="prototype-badge" style="margin-bottom: 0.5rem;">
+              <span aria-hidden="true">🔐</span> ECDSA P-256 Key Management (Feature Signatures)
+            </div>
+            <h1 style="font-size: 2rem; font-weight: 800; margin: 0 0 0.35rem 0;">Officer Digital Keys</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">
+              Cryptographic keys for signing evidence intake and establishing chain of custody.
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" id="btnRestoreBackup" style="display: flex; align-items: center; gap: 6px;">
+              <span>📥</span> Restore from Backup
+            </button>
+            <input type="file" id="restoreFileInput" accept=".json" style="display: none;">
+            <button class="btn btn-primary" id="btnOpenGenerateModal" style="display: flex; align-items: center; gap: 6px;">
+              <span>➕</span> Generate New Key
+            </button>
+          </div>
+        </div>
+
+        <!-- Security Warning Banner -->
+        <div class="glass-card" style="padding: 1.25rem 1.5rem; margin-bottom: 2rem; border-left: 4px solid var(--accent-cyan); background: rgba(0, 229, 255, 0.04);">
+          <div style="display: flex; gap: 12px; align-items: flex-start;">
+            <span style="font-size: 1.5rem;" aria-hidden="true">🛡️</span>
+            <div>
+              <strong style="color: var(--accent-cyan); font-size: 0.95rem;">Client-Side Cryptographic Protection</strong>
+              <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0.35rem 0 0 0; line-height: 1.5;">
+                Private keys are generated locally in your browser using the <strong>Web Crypto API (ECDSA P-256)</strong> and encrypted with your passphrase using <strong>PBKDF2-SHA256 (600,000 iterations) and AES-256-GCM</strong> before saving to local IndexedDB. The EvidenceGuard server <em>never</em> receives your private key or passphrase.
+                <br>
+                <span style="color: #ffb74d;">⚠️ Important: If you lose your passphrase or clear your browser data, your key cannot be recovered. Download an encrypted backup immediately.</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Keys Table Card -->
+        <div class="glass-card" style="padding: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 10px;">
+            <h2 style="font-size: 1.2rem; font-weight: 700; margin: 0;">My Registered Keys</h2>
+            <span style="font-size: 0.85rem; color: var(--text-muted);" id="keyLimitIndicator">Active keys: 0 / 5</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>Key ID</th>
+                  <th>Fingerprint (SHA-256)</th>
+                  <th>Algorithm</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Local Storage</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="keysTableBody">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                    Loading cryptographic keys...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- Generate Key Modal -->
+      <div class="modal" id="generateKeyModal" role="dialog" aria-modal="true" aria-labelledby="genModalTitle" style="display: none;">
+        <div class="modal-content glass-card" style="max-width: 520px; width: 90%; padding: 2rem;">
+          <h2 id="genModalTitle" style="font-size: 1.3rem; font-weight: 700; margin: 0 0 1rem 0;">Generate ECDSA P-256 Key Pair</h2>
+          <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">
+            A new cryptographic key pair will be generated. The private key will be encrypted locally with your passphrase before storing in your browser's IndexedDB.
+          </p>
+
+          <form id="generateKeyForm">
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <label for="keyLabel" style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">
+                Key Label / Device Name
+              </label>
+              <input type="text" id="keyLabel" class="form-control" placeholder="e.g. Investigation Laptop, Field Unit A" required maxlength="60" style="width: 100%; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <label for="keyPassphrase" style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">
+                Key Protection Passphrase (min. 8 characters)
+              </label>
+              <input type="password" id="keyPassphrase" class="form-control" placeholder="Enter passphrase to encrypt private key" required minlength="8" style="width: 100%; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+              <label for="keyPassphraseConfirm" style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">
+                Confirm Passphrase
+              </label>
+              <input type="password" id="keyPassphraseConfirm" class="form-control" placeholder="Confirm passphrase" required minlength="8" style="width: 100%; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);">
+            </div>
+
+            <div id="genKeyProgress" style="display: none; margin-bottom: 1.25rem; font-size: 0.85rem; color: var(--accent-cyan);">
+              ⏳ Generating key & deriving PBKDF2 (600,000 rounds)...
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+              <button type="button" class="btn btn-secondary" id="btnCancelGenKey">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="btnSubmitGenKey">Generate & Register Key</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Revoke Key Modal -->
+      <div class="modal" id="revokeKeyModal" role="dialog" aria-modal="true" aria-labelledby="revokeModalTitle" style="display: none;">
+        <div class="modal-content glass-card" style="max-width: 480px; width: 90%; padding: 2rem;">
+          <h2 id="revokeModalTitle" style="font-size: 1.3rem; font-weight: 700; margin: 0 0 1rem 0; color: var(--status-tampered);">Revoke Digital Key</h2>
+          <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.25rem;">
+            Revoking a key will prevent it from signing new evidence. Previous evidence signed before revocation remains valid. This action cannot be undone.
+          </p>
+
+          <form id="revokeKeyForm">
+            <input type="hidden" id="revokeKeyId">
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+              <label for="revokeReason" style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">
+                Revocation Reason (Required)
+              </label>
+              <textarea id="revokeReason" class="form-control" placeholder="e.g. Device decommissioned, compromised laptop, officer departure" required minlength="3" rows="3" style="width: 100%; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); resize: vertical;"></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+              <button type="button" class="btn btn-secondary" id="btnCancelRevoke">Cancel</button>
+              <button type="submit" class="btn btn-danger" id="btnSubmitRevoke">Confirm Revocation</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

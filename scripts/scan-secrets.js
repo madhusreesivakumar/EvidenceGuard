@@ -33,7 +33,7 @@ const SECRET_PATTERNS = [
 // Filename patterns that should never be tracked
 const FORBIDDEN_FILES = [
   /^\.env$/,
-  /^\.env\./,   // .env.local, .env.production, etc.
+  /^\.env\.(?!example)/, // .env.local, .env.production, etc. (allows .env.example)
   /^uploads\//  // uploaded files directory
 ];
 

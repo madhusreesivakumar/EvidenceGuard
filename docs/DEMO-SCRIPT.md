@@ -140,6 +140,27 @@ If the panel asks: *"How do we know the blockchain validation actually works whe
 
 ---
 
+## Sprint 9A Demo Segment: Officer Key Generation & Zero-Knowledge Storage (1 Minute)
+
+- **Visual:** Navigate to `http://localhost:3000/keys.html` (Digital Keys in sidebar).
+- **Spoken Script:**
+  > *"In Sprint 9, we introduce asymmetric digital signatures using ECDSA P-256 and the browser's native Web Crypto API.
+  > 
+  > Notice our security architecture: the officer's private key is generated directly inside their browser sandbox and encrypted locally with their personal passphrase using PBKDF2 (600,000 rounds) and AES-256-GCM before saving to IndexedDB. The EvidenceGuard server NEVER receives or stores the private key or passphrase.
+  > 
+  > Let's register a new cryptographic key for Detective Miller."*
+- **Action:**
+  1. Click **"Generate New Key"**.
+  2. Enter Label: `"Field Station Laptop"`, Passphrase: `"OfficerSecurePass2026!"`.
+  3. Click **"Generate & Register Key"**.
+  4. The browser acquires a single-use random nonce from `GET /api/keys/challenge`, signs it using the private key (IEEE P1363), and sends `{ publicKeyJwk, label, signature, challenge }` to `POST /api/keys`.
+  5. The server cryptographically verifies the proof of possession and records the key with its canonical SHA-256 SPKI fingerprint.
+  6. The key immediately appears in the table with an **Active** status badge and a **"✔ This Device"** storage indicator.
+  7. Click **"💾 Backup"** to demonstrate downloading the encrypted `.json` key container.
+  8. Click **"Revoke"** on an old key, provide reason (`"Hardware decommissioned"`), and observe the key change to **Revoked** with immediate logging in `/audit.html`.
+
+---
+
 ## Contingency & Backup Plans
 
 | Step | Risk / What If | Backup Procedure |

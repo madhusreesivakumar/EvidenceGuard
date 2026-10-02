@@ -117,9 +117,33 @@ Every failure case was tested to ensure the application fails securely and retur
 
 ---
 
-## 7. Sign-off Summary
+## 8. Sprint 9A: Digital Signatures — Key Management & Proof of Possession
 
-- **Total Test Cases Executed:** 75+ manual & automated checks  
+| Test Scenario | Action / Input | Expected Result | Status |
+| :--- | :--- | :--- | :---: |
+| **Feature Flag Guard** | Access `/api/keys` with `FEATURE_SIGNATURES=false` | Returns HTTP 403 `FEATURE_DISABLED` | **PASS** |
+| **Acquire Challenge** | `GET /api/keys/challenge` | 64-char single-use hex nonce returned with 5-minute TTL | **PASS** |
+| **ECDSA P-256 Key Registration** | `POST /api/keys` with valid JWK and signature | Verified on server, stored in `userkeys`, returns HTTP 201 | **PASS** |
+| **Replay Attack Rejection** | Replay previously used challenge nonce | Rejected with HTTP 400 `CHALLENGE_REPLAYED` | **PASS** |
+| **Expired Nonce Rejection** | Submit challenge older than 5 minutes | Rejected with HTTP 400 `CHALLENGE_EXPIRED` | **PASS** |
+| **Wrong Curve Rejection** | Submit P-384 or invalid curve key | Rejected with HTTP 400 `INVALID_JWK` | **PASS** |
+| **Signature Mismatch Rejection** | Submit signature signed with different key | Rejected with HTTP 400 `INVALID_SIGNATURE` | **PASS** |
+| **Duplicate Key Rejection** | Re-register existing public key fingerprint | Rejected with HTTP 409 `DUPLICATE_KEY` | **PASS** |
+| **Key Limit Enforcement** | Attempt registering 6th active key for user | Rejected with HTTP 400 `KEY_LIMIT_REACHED` | **PASS** |
+| **Zero Private Key Leakage** | Inspect responses from `GET /api/keys` and `/public` | No `d` parameter or private key material exposed | **PASS** |
+| **Foreign User Revocation Blocked**| User B attempts to revoke User A's key | Rejected with HTTP 403 `FORBIDDEN` | **PASS** |
+| **Key Owner Revocation** | Owner submits `POST /api/keys/:keyId/revoke` | Key marked `revoked`, timestamp & reason stored | **PASS** |
+| **Admin Revocation Override** | Admin revokes user key with reason | Status updated to `revoked`, returned HTTP 200 | **PASS** |
+| **Double Revocation Prevention** | Revoke an already revoked key | Rejected with HTTP 400 `ALREADY_REVOKED` | **PASS** |
+| **Audit Trail Integration** | Query audit log for key actions | Contains `KEY_REGISTERED` and `KEY_REVOKED` entries | **PASS** |
+| **Audit Chain Validity** | Validate audit log chain after key operations | Returns `AUDIT CHAIN: VALID` | **PASS** |
+| **Encrypted Backup & Restore** | Export `.json` backup and restore into IndexedDB | PBKDF2 salt/iv/ciphertext verified and restored | **PASS** |
+
+---
+
+## 9. Sign-off Summary
+
+- **Total Test Cases Executed:** 115+ manual & automated checks  
 - **Pass Rate:** 100% (0 open failures)  
 - **Security Audit Status:** Clean (no hardcoded secrets, no sensitive logs, helmet & rate limiting active)  
-- **Final Verdict:** **READY FOR RELEASE v1.0.0**
+- **Sprint 9A Status:** **READY (Feature Flag FEATURE_SIGNATURES=true)**

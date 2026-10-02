@@ -150,6 +150,7 @@ const publicRoutes     = require('./routes/publicRoutes');
 const dashboardRoutes  = require('./routes/dashboardRoutes');
 const auditRoutes      = require('./routes/auditRoutes');
 const userRoutes       = require('./routes/userRoutes');
+const keyRoutes        = require('./routes/keyRoutes');
 
 app.use('/api/auth',       authRoutes);
 app.use('/api/evidence',   evidenceRoutes);
@@ -158,6 +159,7 @@ app.use('/api/public',     publicRoutes);
 app.use('/api/dashboard',  dashboardRoutes);
 app.use('/api/audit',      auditRoutes);
 app.use('/api/users',      userRoutes);
+app.use('/api/keys',       keyRoutes);
 
 // ── 404 for unknown /api routes ───────────────────────────────────────────────
 app.use('/api', (req, res) => {
