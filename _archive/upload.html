@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Evidence – EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-icon">🔐</div>
+      EvidenceGuard
+    </div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="upload.html" class="active"><span class="nav-icon">⬆</span>  Upload Evidence</a>
+      <a href="records.html">   <span class="nav-icon">🗂</span>  Evidence Records</a>
+      <a href="verify.html">    <span class="nav-icon">✅</span> Verify Evidence</a>
+      <a href="blockchain.html"><span class="nav-icon">⛓</span>  Blockchain</a>
+      <a href="about.html">     <span class="nav-icon">ℹ️</span>  About</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="index.html">🚪 Logout</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main-content">
+    <div class="dash-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menuToggle">☰</button>
+        <h1>Upload Digital Evidence</h1>
+      </div>
+      <div class="header-right">
+        <span class="badge-online">System Online</span>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <div class="info-box">
+        <strong>ℹ️ How it works:</strong> Select your evidence file and fill in the details below.
+        A real <strong>SHA-256 hash</strong> will be generated in your browser using the Web Crypto API.
+        The evidence will be registered and viewable on the <a href="records.html">Records</a> page.
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;flex-wrap:wrap;">
+
+        <!-- Upload Form -->
+        <div class="card" style="min-width:0;">
+          <div class="card-header">📁 Evidence Details</div>
+          <div class="card-body">
+            <form id="uploadForm">
+              <div class="form-group">
+                <label class="form-label" for="evidenceName">Evidence Name *</label>
+                <input type="text" id="evidenceName" class="form-control" placeholder="e.g. CCTV Footage Sept 2026" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="evidenceType">Evidence Type *</label>
+                <select id="evidenceType" class="form-control" required>
+                  <option value="">— Select Type —</option>
+                  <option value="Image">Image</option>
+                  <option value="Video">Video</option>
+                  <option value="Audio">Audio</option>
+                  <option value="Document">Document</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="evidenceDesc">Description</label>
+                <textarea id="evidenceDesc" class="form-control" placeholder="Optional description of this evidence…"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Select File</label>
+                <div class="file-drop" id="fileDrop">
+                  <input type="file" id="evidenceFile" />
+                  <div class="file-drop-icon">📂</div>
+                  <p>Drag &amp; drop your file here, or <strong style="color:var(--accent2)">click to browse</strong></p>
+                  <p style="font-size:0.78rem;margin-top:4px;">Supports: Images, Videos, Audio, Documents</p>
+                  <div class="chosen" id="fileChosen"></div>
+                </div>
+                <p class="text-muted mt-1">If no file is selected, a demo hash will be generated based on the evidence name.</p>
+              </div>
+
+              <!-- Spinner -->
+              <div id="uploadSpinner" style="display:none;align-items:center;gap:10px;margin-bottom:1rem;color:var(--accent2);">
+                <div style="width:20px;height:20px;border:3px solid var(--border);border-top-color:var(--accent2);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+                Generating SHA-256 hash &amp; registering evidence…
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100">⬆ Upload Evidence</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Result Panel -->
+        <div style="min-width:0;">
+          <div class="result-panel success" id="uploadResult">
+            <div class="result-title ok">✅ Evidence Registered Successfully</div>
+
+            <div class="result-row">
+              <label>Evidence ID</label>
+              <div class="value highlight" id="res-id"></div>
+            </div>
+            <div class="result-row">
+              <label>Evidence Name</label>
+              <div class="value" id="res-name"></div>
+            </div>
+            <div class="result-row">
+              <label>File Name</label>
+              <div class="value" id="res-file"></div>
+            </div>
+            <div class="result-row">
+              <label>SHA-256 Hash</label>
+              <div class="value highlight" id="res-hash" style="font-size:0.75rem;"></div>
+            </div>
+            <div class="result-row">
+              <label>Registration Date &amp; Time</label>
+              <div class="value" id="res-date"></div>
+            </div>
+
+            <div style="margin-top:1rem;display:flex;gap:10px;flex-wrap:wrap;">
+              <a href="records.html" class="btn btn-success btn-sm">🗂 View Records</a>
+              <a href="verify.html"  class="btn btn-outline btn-sm">✅ Verify Evidence</a>
+            </div>
+          </div>
+
+          <!-- Guide card -->
+          <div class="card mt-2" id="uploadGuideCard">
+            <div class="card-header">🔑 SHA-256 Hashing</div>
+            <div class="card-body" style="color:var(--muted);font-size:0.875rem;line-height:1.8;">
+              <p>SHA-256 (Secure Hash Algorithm 256-bit) generates a unique 64-character hexadecimal fingerprint from your file content.</p>
+              <br/>
+              <p>✔ Even a 1-byte change produces a completely different hash.</p>
+              <p>✔ The hash is one-way — it cannot be reversed to get the original file.</p>
+              <p>✔ Any tampering will change the hash and break the blockchain chain.</p>
+              <br/>
+              <p style="color:var(--accent2);font-size:0.8rem;">SHA-256 is generated locally in your browser using the <strong>Web Crypto API</strong>.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 768px) {
+    .page-body > div[style*="grid-template-columns:1fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+
+<script src="script.js"></script>
+</body>
+</html>

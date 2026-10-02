@@ -1,0 +1,38 @@
+{
+  "name": "evidenceguard",
+  "version": "1.0.0",
+  "description": "Evidence Protection System Using Blockchain Technology — College Project",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node scripts/run-all-tests.js",
+    "test:e2e": "node scripts/test-e2e.js",
+    "seed": "node scripts/seed.js",
+    "create-admin": "node scripts/create-admin.js"
+  },
+  "keywords": [
+    "evidence",
+    "blockchain",
+    "sha256",
+    "security"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "express-validator": "^7.3.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.10.3",
+    "multer": "^2.4.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.3.0"
+  }
+}

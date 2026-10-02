@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evidence Records - EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+</head>
+<body data-page="records">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item active"><span class="nav-icon">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">📋</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--status-tampered); display:block; margin-top:10px;">🚪 Logout</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger">☰</button>
+          <h1 id="pageTitle" style="font-size:1.2rem; margin:0;">Evidence Records</h1>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock"></span>
+          <div class="user-area">
+            <span class="badge badge-verified">System Online</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h2 style="font-size: 1.6rem; margin-bottom: 0.25rem;">Evidence Repository</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Cryptographically verified forensic evidence ledger records</p>
+          </div>
+          <div>
+            <a href="upload.html" id="topUploadBtn" class="btn btn-primary" style="display: none;">+ Upload New Evidence</a>
+          </div>
+        </div>
+
+        <!-- Filter / Search Toolbar -->
+        <div class="glass-card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+          <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+            <!-- Search -->
+            <div style="flex: 2 1 240px; min-width: 220px;">
+              <label class="form-label" for="recordSearch">Search Records</label>
+              <div style="position: relative;">
+                <input type="text" id="recordSearch" class="form-control" placeholder="Search ID, Case, Name, File, Hash..." style="padding-left: 2.2rem;">
+                <span style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);">🔍</span>
+              </div>
+            </div>
+
+            <!-- Type -->
+            <div style="flex: 1 1 130px; min-width: 120px;">
+              <label class="form-label" for="filterType">Type</label>
+              <select id="filterType" class="form-control">
+                <option value="">All Types</option>
+                <option value="Image">Image</option>
+                <option value="Video">Video</option>
+                <option value="Audio">Audio</option>
+                <option value="Document">Document</option>
+                <option value="PDF">PDF</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <!-- Status -->
+            <div style="flex: 1 1 130px; min-width: 120px;">
+              <label class="form-label" for="filterStatus">Status</label>
+              <select id="filterStatus" class="form-control">
+                <option value="">All Statuses</option>
+                <option value="Verified">Verified</option>
+                <option value="Pending">Pending</option>
+                <option value="Tampered">Tampered</option>
+              </select>
+            </div>
+
+            <!-- Date From -->
+            <div style="flex: 1 1 140px; min-width: 130px;">
+              <label class="form-label" for="filterDateFrom">Date From</label>
+              <input type="date" id="filterDateFrom" class="form-control">
+            </div>
+
+            <!-- Date To -->
+            <div style="flex: 1 1 140px; min-width: 130px;">
+              <label class="form-label" for="filterDateTo">Date To</label>
+              <input type="date" id="filterDateTo" class="form-control">
+            </div>
+
+            <!-- Sort -->
+            <div style="flex: 1 1 160px; min-width: 150px;">
+              <label class="form-label" for="filterSort">Sort Order</label>
+              <select id="filterSort" class="form-control">
+                <option value="createdAt:desc">Date (Newest)</option>
+                <option value="createdAt:asc">Date (Oldest)</option>
+                <option value="evidenceId:asc">Evidence ID (Asc)</option>
+                <option value="evidenceId:desc">Evidence ID (Desc)</option>
+                <option value="name:asc">Name (A-Z)</option>
+                <option value="type:asc">Type</option>
+                <option value="status:asc">Status</option>
+              </select>
+            </div>
+
+            <!-- Clear -->
+            <div style="flex: 0 0 auto;">
+              <button id="clearFiltersBtn" class="btn btn-secondary" style="height: 44px;">Clear Filters</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evidence Table Card -->
+        <div class="glass-card" style="padding: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-weight: 600; font-size: 1.05rem;">
+              <span>🗂 All Evidence Records</span>
+            </div>
+            <div id="recordsCount" style="color: var(--text-muted); font-size: 0.85rem;">Loading records...</div>
+          </div>
+
+          <!-- Table Container -->
+          <div class="table-responsive">
+            <table class="table responsive-evidence-table" id="recordsTable">
+              <thead>
+                <tr>
+                  <th>Evidence ID</th>
+                  <th>Case ID</th>
+                  <th>Evidence Name</th>
+                  <th>Type</th>
+                  <th>File Name</th>
+                  <th>SHA-256</th>
+                  <th>Uploaded By</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recordsTbody">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State -->
+          <div id="emptyState" style="display: none; text-align: center; padding: 3.5rem 1rem;">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔍</div>
+            <h3 style="margin-bottom: 0.5rem; color: var(--text-main);">No evidence matches your filters</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 400px; margin: 0 auto 1.5rem;">No registered evidence records matched the search query or active filter selections.</p>
+            <button class="btn btn-secondary" id="emptyClearBtn">Clear All Filters</button>
+          </div>
+
+          <!-- Error State -->
+          <div id="errorState" style="display: none; text-align: center; padding: 3.5rem 1rem;">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">⚠️</div>
+            <h3 style="margin-bottom: 0.5rem; color: var(--status-tampered);">Unable to load records</h3>
+            <p id="errorMessage" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;"></p>
+            <button class="btn btn-primary" id="retryBtn">Retry</button>
+          </div>
+
+          <!-- Pagination -->
+          <div id="paginationContainer" style="display: none; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <div id="paginationInfo" style="font-size: 0.85rem; color: var(--text-muted);"></div>
+            <div id="paginationControls" style="display: flex; gap: 0.35rem; flex-wrap: wrap;"></div>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div style="margin-top: 1.5rem; display: flex; gap: 1.5rem; align-items: center; font-size: 0.85rem; color: var(--text-muted); flex-wrap: wrap;">
+          <strong style="color: var(--text-main);">Legend:</strong>
+          <span><span class="badge badge-verified">Verified</span> Hash matches immutable blockchain block</span>
+          <span><span class="badge badge-pending">Pending</span> Registered and chained, awaiting verification</span>
+          <span><span class="badge badge-tampered">Tampered</span> Cryptographic mismatch detected</span>
+        </div>
+      </main>
+
+      <footer class="page-footer">
+        &copy; 2026 EvidenceGuard — Tamper-Evident Digital Forensics System
+      </footer>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal-content" style="max-width: 520px;">
+      <h3 style="margin-top: 0; color: var(--status-tampered); display: flex; align-items: center; gap: 8px;">
+        <span>🗑</span> Confirm Evidence Deletion
+      </h3>
+      
+      <div style="margin: 1.25rem 0; line-height: 1.5;">
+        <p style="margin-bottom: 0.75rem; font-size: 0.95rem;">
+          Are you sure you want to delete evidence <strong id="deleteEvidenceDisplay" style="color: var(--accent-cyan);"></strong>?
+        </p>
+        
+        <div style="background: rgba(255, 77, 77, 0.1); border-left: 3px solid var(--status-tampered); padding: 0.85rem 1rem; border-radius: 4px; font-size: 0.85rem; color: #ffb3b3; margin-bottom: 1.25rem;">
+          ⚠️ <strong>Notice:</strong> The ledger block is kept; the record is marked deleted and the stored file is removed.
+        </div>
+
+        <div class="form-group">
+          <label for="deleteReasonInput" class="form-label" style="font-weight: 600; color: var(--text-main);">
+            Reason for Deletion <span style="color: var(--status-tampered);">* (5 to 300 characters)</span>
+          </label>
+          <textarea id="deleteReasonInput" class="form-control" rows="3" placeholder="Enter formal audit reason for deleting this evidence record..." minlength="5" maxlength="300" style="resize: vertical;"></textarea>
+          <div id="deleteReasonError" style="color: var(--status-tampered); font-size: 0.8rem; margin-top: 4px; display: none;"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-secondary" id="cancelDeleteBtn">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Record</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

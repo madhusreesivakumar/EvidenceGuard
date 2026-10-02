@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav" id="navLinks">
+        <a href="dashboard.html" class="nav-item active"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item investigator-only"><span class="nav-icon">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item audit-only"><span class="nav-icon">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item audit-only"><span class="nav-icon">📋</span> Audit Trail</a>
+        <a href="users.html" class="nav-item users-only"><span class="nav-icon">👥</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--status-tampered); display:block; margin-top:10px;">🚪 Logout</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger">☰</button>
+          <h1 id="pageTitle" style="font-size:1.2rem; margin:0;">Dashboard</h1>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock"></span>
+          <div class="user-area">
+            <span class="badge badge-verified" id="topbarRoleBadge">VIEWER</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <div class="dash-header">
+          <div>
+            <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 0.25rem;">Evidence Protection Dashboard</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Real-time hash chain ledger status, cryptographic verifications, and recent activity.</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <button id="btnRefreshStats" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; min-height: 36px;">
+              🔄 <span id="refreshBtnText">Refresh</span>
+            </button>
+            <span id="dashClock" style="font-size:0.82rem; color:var(--text-muted);"></span>
+          </div>
+        </div>
+
+        <div class="content-area">
+          <!-- Stat Cards Grid -->
+          <div class="stats-grid" id="statsGrid">
+            <div class="stat-card" id="card-total-evidence" style="border-bottom: 3px solid var(--accent-blue);">
+              <div class="stat-icon">📁</div>
+              <div>
+                <div class="stat-val" id="stat-total">-</div>
+                <div class="stat-label">Total Evidence</div>
+              </div>
+            </div>
+            <div class="stat-card" id="card-verified-evidence" style="border-bottom: 3px solid var(--status-verified);">
+              <div class="stat-icon">✅</div>
+              <div>
+                <div class="stat-val" id="stat-verified" style="color: var(--status-verified);">-</div>
+                <div class="stat-label">Verified Evidence</div>
+              </div>
+            </div>
+            <div class="stat-card" id="card-pending-evidence" style="border-bottom: 3px solid var(--status-pending);">
+              <div class="stat-icon">⏳</div>
+              <div>
+                <div class="stat-val" id="stat-pending" style="color: var(--status-pending);">-</div>
+                <div class="stat-label">Pending Evidence</div>
+              </div>
+            </div>
+            <div class="stat-card" id="card-tampered-evidence" style="border-bottom: 3px solid var(--status-tampered);">
+              <div class="stat-icon">⚠️</div>
+              <div>
+                <div class="stat-val" id="stat-tampered" style="color: var(--status-tampered);">-</div>
+                <div class="stat-label">Tampered Evidence</div>
+              </div>
+            </div>
+            <div class="stat-card" id="card-verifications" style="border-bottom: 3px solid var(--accent-cyan);">
+              <div class="stat-icon">🔍</div>
+              <div>
+                <div class="stat-val" id="stat-verifications">-</div>
+                <div class="stat-label">Total Verifications</div>
+              </div>
+            </div>
+            <div class="stat-card" id="card-blockchain" style="border-bottom: 3px solid var(--accent-cyan);">
+              <div class="stat-icon">⛓</div>
+              <div>
+                <div class="stat-val" id="stat-blockchain">-</div>
+                <div class="stat-label">Ledger Blocks</div>
+              </div>
+            </div>
+            <div class="stat-card" id="card-audit" style="border-bottom: 3px solid #9c27b0;">
+              <div class="stat-icon">📋</div>
+              <div>
+                <div class="stat-val" id="stat-audit">-</div>
+                <div class="stat-label">Audit Events</div>
+              </div>
+            </div>
+            <div class="stat-card" id="card-users" style="border-bottom: 3px solid #00d4ff;">
+              <div class="stat-icon">👥</div>
+              <div>
+                <div class="stat-val" id="stat-users">-</div>
+                <div class="stat-label">Registered Users</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blockchain Integrity Panel -->
+          <div class="bc-panel bc-panel-unknown" id="bcPanel" style="display: none;">
+            <div>
+              <div class="bc-status-title" id="bcStatusTitle">
+                <span>⛓</span>
+                <span id="bcStatusHeading">Blockchain Integrity: Checking...</span>
+              </div>
+              <div class="bc-status-meta" id="bcStatusMeta">
+                <span id="bcStatusSub">Loading hash-chain status...</span>
+              </div>
+            </div>
+            <div id="bcActionWrap" style="display: flex; align-items: center; gap: 0.5rem;">
+              <button id="btnValidateNow" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem; min-height: 36px; display: none;">
+                🛡 Validate Ledger Now
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Actions Bar -->
+          <div class="quick-actions-bar">
+            <a href="upload.html" class="quick-action-card investigator-only">
+              <span>⬆</span> Register Evidence
+            </a>
+            <a href="records.html" class="quick-action-card">
+              <span>🗂</span> View Records
+            </a>
+            <a href="verify.html" class="quick-action-card">
+              <span>✅</span> Verify Evidence
+            </a>
+            <a href="blockchain.html" class="quick-action-card audit-only">
+              <span>⛓</span> Hash-Chain Ledger
+            </a>
+            <a href="audit.html" class="quick-action-card audit-only">
+              <span>📋</span> Audit Logs
+            </a>
+          </div>
+
+          <!-- Two-Column Main Area: Stats Chart & Recent Evidence vs Recent Activity -->
+          <div class="dash-grid-2">
+            <!-- Left Column: Verification Chart + Recent Evidence -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+              <!-- 7-Day Verification Chart Card -->
+              <div class="glass-card" id="verificationChartCard" style="margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                  <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0;">📈 Verification Trends (Last 7 Days)</h3>
+                  <div style="font-size: 0.85rem; color: var(--text-muted);">
+                    Tamper Rate: <span id="tamperRateBadge" style="font-weight: bold; color: var(--text-main);">0.0%</span>
+                  </div>
+                </div>
+
+                <div class="chart-container">
+                  <div class="chart-bars-wrap" id="chartBarsWrap">
+                    <!-- Dynamic day bars inserted here -->
+                  </div>
+                  <div class="chart-legend">
+                    <span><span class="legend-dot" style="background: var(--status-verified);"></span> Verified</span>
+                    <span><span class="legend-dot" style="background: var(--status-tampered);"></span> Tampered</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Evidence Card -->
+              <div class="glass-card" style="margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                  <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0;">📁 Recent Evidence</h3>
+                  <a href="records.html" style="font-size: 0.85rem;">View All Records →</a>
+                </div>
+                <div class="table-responsive">
+                  <table class="table responsive-evidence-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Evidence Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dashTbody">
+                      <tr>
+                        <td colspan="6" style="text-align:center; color: var(--text-muted);">Loading recent evidence...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Recent Activity Feed -->
+            <div>
+              <div class="glass-card" id="recentActivityCard" style="height: 100%; margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                  <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0;">⚡ Recent Activity</h3>
+                  <a href="audit.html" class="audit-only" style="font-size: 0.85rem;">Full Trail →</a>
+                </div>
+                <div class="activity-feed" id="activityList">
+                  <div style="text-align: center; color: var(--text-muted); padding: 1.5rem 0;">Loading activity...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </main>
+
+      <footer class="page-footer">
+        &copy; 2026 EvidenceGuard — Tamper-Evident Digital Evidence Management System (Blockchain-Inspired Hash-Chain Prototype)
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

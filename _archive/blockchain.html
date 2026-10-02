@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blockchain Ledger – EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-icon">🔐</div>
+      EvidenceGuard
+    </div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="upload.html">   <span class="nav-icon">⬆</span>  Upload Evidence</a>
+      <a href="records.html">  <span class="nav-icon">🗂</span>  Evidence Records</a>
+      <a href="verify.html">   <span class="nav-icon">✅</span> Verify Evidence</a>
+      <a href="blockchain.html" class="active"><span class="nav-icon">⛓</span>  Blockchain</a>
+      <a href="about.html">    <span class="nav-icon">ℹ️</span>  About</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="index.html">🚪 Logout</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main-content">
+    <div class="dash-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menuToggle">☰</button>
+        <h1>Blockchain Ledger</h1>
+      </div>
+      <div class="header-right">
+        <span class="demo-label">🧪 Local Hash-Chain Demo</span>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Explanation -->
+      <div class="card mb-2" style="margin-bottom:1.5rem;">
+        <div class="card-header">⛓ What is this?</div>
+        <div class="card-body" style="color:var(--muted);font-size:0.875rem;line-height:1.8;">
+          <p>Each evidence record is added as a <strong style="color:var(--text)">block</strong> in the chain.
+          Every block contains the <strong style="color:var(--accent2)">SHA-256 hash of the previous block</strong>,
+          linking them together.</p>
+          <br/>
+          <p>🔒 If any earlier block is modified, its hash changes — breaking the link to all subsequent blocks.
+          This makes tampering immediately detectable.</p>
+          <br/>
+          <p>⚠️ <em>This is a local, browser-based hash-chain demonstration using the Web Crypto API.
+          In a production system, this would be written to a distributed ledger.</em></p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:2rem;align-items:start;flex-wrap:wrap;">
+
+        <!-- Chain visualization -->
+        <div style="min-width:0;">
+          <div class="chain-wrapper" id="chainContainer">
+            <div style="color:var(--muted);font-size:0.85rem;padding:2rem;text-align:center;">
+              ⛓ Building blockchain…
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar info + validate -->
+        <div>
+          <div class="card" style="margin-bottom:1.5rem;">
+            <div class="card-header">🔎 Chain Info</div>
+            <div class="card-body" style="font-size:0.85rem;color:var(--muted);display:flex;flex-direction:column;gap:10px;">
+              <div><span style="color:var(--accent2);font-weight:700;">Genesis Block</span> — The first block, with a fixed previous hash of zeros. Acts as the chain anchor.</div>
+              <div><span style="color:var(--accent2);font-weight:700;">Evidence Blocks</span> — Each subsequent block stores the evidence ID, its SHA-256 hash, and the previous block's hash.</div>
+              <div><span style="color:var(--accent2);font-weight:700;">Hash Linking</span> — Each block's "Previous Hash" equals the "Current Hash" of the block above it.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">✅ Validate Integrity</div>
+            <div class="card-body">
+              <p style="font-size:0.875rem;color:var(--muted);margin-bottom:1rem;">
+                Click below to re-compute all block hashes and verify the entire chain is intact.
+              </p>
+              <button class="btn btn-primary w-100" id="validateBtn">🔍 Validate Blockchain</button>
+
+              <div class="validate-result" id="validateResult">
+                <div class="vr-icon" style="font-size:2.5rem;"></div>
+                <div class="vr-text" style="font-size:1.1rem;font-weight:700;margin-top:0.5rem;"></div>
+                <div class="vr-sub" style="font-size:0.82rem;color:var(--muted);margin-top:0.4rem;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-box mt-3" style="margin-top:1rem;">
+            <strong>Label:</strong> <span style="color:var(--yellow);">Local Blockchain / Hash-Chain Demo</span><br/>
+            SHA-256 computed in-browser via <strong>Web Crypto API</strong>. No server required.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @media (max-width: 900px) {
+    .page-body > div[style*="grid-template-columns:auto 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+    .chain-wrapper { align-items: stretch; }
+    .block-card { max-width: 100%; }
+  }
+</style>
+
+<script src="script.js"></script>
+</body>
+</html>

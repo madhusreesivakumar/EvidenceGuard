@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Management - EvidenceGuard</title>
+  <meta name="description" content="Manage EvidenceGuard user accounts, roles, and access. Admin only.">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">🛡</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav" id="navLinks">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item investigator-only"><span class="nav-icon">➕</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">📋</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">🔍</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item audit-only"><span class="nav-icon">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item audit-only"><span class="nav-icon">📜</span> Audit Trail</a>
+        <a href="users.html" class="nav-item active users-only"><span class="nav-icon">👥</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--status-tampered); display:block; margin-top:10px;">🚪 Logout</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger">☰</button>
+          <h1 id="pageTitle" style="font-size:1.2rem; margin:0;">User Management</h1>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock"></span>
+          <div class="user-area">
+            <span class="badge badge-verified" id="topbarRoleBadge">ADMIN</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <div class="dash-header">
+          <div>
+            <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:0.25rem;">User Management</h2>
+            <p style="color:var(--text-muted);font-size:0.85rem;margin:0;">
+              Create accounts, change roles, and deactivate users. Evidence and audit history are always preserved.
+            </p>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <span id="dashClock" style="font-size:0.82rem;color:var(--text-muted);"></span>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="glass-card" style="margin-bottom:1.25rem;padding:1rem;">
+          <div class="users-toolbar">
+            <div class="form-group" style="margin:0;flex:1;min-width:200px;">
+              <input type="text" id="usersSearch" class="form-control"
+                     placeholder="Search name or email…" aria-label="Search users by name or email" autocomplete="off">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <select id="usersRoleFilter" class="form-control" aria-label="Filter by role">
+                <option value="">All Roles</option>
+                <option value="ADMIN">Admin</option>
+                <option value="INVESTIGATOR">Investigator</option>
+                <option value="VIEWER">Viewer</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <select id="usersStatusFilter" class="form-control" aria-label="Filter by status">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+            <button id="btnAddUser" class="btn btn-primary" style="white-space:nowrap;">
+              ➕ Add User
+            </button>
+          </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="glass-card" style="padding:0;overflow:hidden;">
+          <!-- Loading skeleton -->
+          <div id="usersSkeleton" style="padding:1.5rem;">
+            <div class="skeleton" style="height:40px;margin-bottom:0.75rem;border-radius:6px;"></div>
+            <div class="skeleton" style="height:40px;margin-bottom:0.75rem;border-radius:6px;opacity:0.7;"></div>
+            <div class="skeleton" style="height:40px;border-radius:6px;opacity:0.4;"></div>
+          </div>
+          <!-- Error state -->
+          <div id="usersError" style="display:none;padding:2rem;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:0.5rem;">⚠️</div>
+            <div id="usersErrorMsg" style="color:var(--text-muted);margin-bottom:1rem;">Failed to load users.</div>
+            <button id="btnUsersRetry" class="btn btn-primary">Retry</button>
+          </div>
+          <!-- Empty state -->
+          <div id="usersEmpty" style="display:none;padding:3rem;text-align:center;">
+            <div style="font-size:2.5rem;margin-bottom:0.75rem;">👥</div>
+            <div style="color:var(--text-muted);font-size:0.95rem;">No users found matching your filters.</div>
+          </div>
+          <!-- Table -->
+          <div id="usersTableWrap" style="display:none;overflow-x:auto;">
+            <table class="data-table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Last Login</th>
+                  <th style="text-align:center;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody"></tbody>
+            </table>
+          </div>
+          <!-- Pagination -->
+          <div id="usersPagination" class="pagination-bar" style="display:none;padding:0.75rem 1rem;border-top:1px solid var(--border-color);"></div>
+        </div>
+
+      </main>
+
+      <footer class="page-footer">
+        &copy; 2026 EvidenceGuard &mdash; Blockchain-Inspired Hash-Chain Prototype
+      </footer>
+    </div>
+  </div>
+
+  <!-- ── Add User Modal ─────────────────────────────────────────────────────── -->
+  <div id="modalAddUser" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addUserTitle" style="display:none;">
+    <div class="modal-box" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 id="addUserTitle" style="margin:0;font-size:1.1rem;">Add New User</h3>
+        <button class="modal-close" id="btnCloseAddUser" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-note" style="margin-bottom:1rem;">
+          ℹ️ Share the initial password securely. There is no password-reset flow in this version.
+        </p>
+        <form id="addUserForm" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="auName">Full Name <span style="color:var(--status-tampered);">*</span></label>
+            <input type="text" id="auName" name="name" class="form-control" placeholder="Jane Smith" maxlength="60" required>
+            <div class="field-error" id="errAuName"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="auEmail">Email <span style="color:var(--status-tampered);">*</span></label>
+            <input type="email" id="auEmail" name="email" class="form-control" placeholder="jane@example.com" required>
+            <div class="field-error" id="errAuEmail"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="auPassword">Password <span style="color:var(--status-tampered);">*</span></label>
+            <div style="position:relative;">
+              <input type="password" id="auPassword" name="password" class="form-control" placeholder="Min 8 chars, 1 letter + 1 number" required style="padding-right:2.5rem;">
+              <button type="button" id="btnToggleAuPwd" style="position:absolute;right:0.6rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;" aria-label="Toggle password">👁</button>
+            </div>
+            <div class="field-hint" style="margin-top:0.3rem;font-size:0.78rem;color:var(--text-muted);">Min 8 characters, at least one letter and one number.</div>
+            <div class="field-error" id="errAuPassword"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="auConfirm">Confirm Password <span style="color:var(--status-tampered);">*</span></label>
+            <input type="password" id="auConfirm" name="confirm" class="form-control" placeholder="Repeat password" required>
+            <div class="field-error" id="errAuConfirm"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="auRole">Role <span style="color:var(--status-tampered);">*</span></label>
+            <select id="auRole" name="role" class="form-control">
+              <option value="VIEWER" selected>Viewer</option>
+              <option value="INVESTIGATOR">Investigator</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+          </div>
+          <div class="field-error" id="errAuGlobal" style="margin-top:0.5rem;"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="btnCancelAddUser">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitAddUser">Create User</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Change Role Confirm Modal ─────────────────────────────────────────── -->
+  <div id="modalChangeRole" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
+    <div class="modal-box" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 style="margin:0;font-size:1.1rem;">⚙️ Change Role</h3>
+        <button class="modal-close" id="btnCloseChangeRole" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="changeRoleMsg" style="color:var(--text-main);margin-bottom:1rem;line-height:1.5;"></p>
+        <div class="field-error" id="errChangeRole" style="margin-bottom:0.75rem;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="btnCancelChangeRole">Cancel</button>
+          <button class="btn btn-primary" id="btnConfirmChangeRole">Confirm Change</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Deactivate Confirm Modal ───────────────────────────────────────────── -->
+  <div id="modalDeactivate" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
+    <div class="modal-box" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 style="margin:0;font-size:1.1rem;color:var(--status-tampered);">⚠️ Deactivate User</h3>
+        <button class="modal-close" id="btnCloseDeactivate" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="deactivateMsg" style="color:var(--text-main);margin-bottom:0.75rem;line-height:1.5;"></p>
+        <p class="modal-note" style="margin-bottom:1rem;">
+          The account loses access immediately. Evidence and audit history are kept.
+        </p>
+        <div class="field-error" id="errDeactivate" style="margin-bottom:0.75rem;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="btnCancelDeactivate">Cancel</button>
+          <button class="btn btn-danger" id="btnConfirmDeactivate">Deactivate</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Records – EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-icon">🔐</div>
+      EvidenceGuard
+    </div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="upload.html">   <span class="nav-icon">⬆</span>  Upload Evidence</a>
+      <a href="records.html" class="active"><span class="nav-icon">🗂</span>  Evidence Records</a>
+      <a href="verify.html">   <span class="nav-icon">✅</span> Verify Evidence</a>
+      <a href="blockchain.html"><span class="nav-icon">⛓</span>  Blockchain</a>
+      <a href="about.html">    <span class="nav-icon">ℹ️</span>  About</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="index.html">🚪 Logout</a>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main-content">
+    <div class="dash-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menuToggle">☰</button>
+        <h1>Evidence Records</h1>
+      </div>
+      <div class="header-right">
+        <a href="upload.html" class="btn btn-primary btn-sm">⬆ Upload New</a>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <div class="card">
+        <div class="card-header">
+          🗂 All Evidence Records
+          <span class="demo-label" style="margin-left:auto;">📋 Demo Data + Uploaded Records</span>
+        </div>
+        <div class="card-body" style="padding-bottom:0;">
+
+          <!-- Search & Filter Toolbar -->
+          <div class="toolbar">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="recordSearch" placeholder="Search evidence by name, ID, type, status…" />
+            </div>
+            <div class="filter-tabs">
+              <button class="filter-btn active" data-filter="All">All</button>
+              <button class="filter-btn" data-filter="Image">Image</button>
+              <button class="filter-btn" data-filter="Video">Video</button>
+              <button class="filter-btn" data-filter="Audio">Audio</button>
+              <button class="filter-btn" data-filter="Document">Document</button>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Evidence ID</th>
+                  <th>Evidence Name</th>
+                  <th>Type</th>
+                  <th>File Name</th>
+                  <th>Date</th>
+                  <th>SHA-256 Hash</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="recordsTbody">
+                <tr><td colspan="8" class="text-center text-muted" style="padding:2rem">Loading records…</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem;font-size:0.8rem;color:var(--muted);">
+        <span><span class="badge badge-verified">Verified</span> — Hash matches original</span>
+        <span><span class="badge badge-pending">Pending</span> — Awaiting verification</span>
+        <span><span class="badge badge-tampered">Tampered</span> — Hash mismatch detected</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

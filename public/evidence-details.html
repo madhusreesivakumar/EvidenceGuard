@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evidence Details - EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+  <style>
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #qrPrintArea, #qrPrintArea * {
+        visibility: visible !important;
+      }
+      #qrPrintArea {
+        position: fixed !important;
+        left: 50% !important;
+        top: 20% !important;
+        transform: translateX(-50%) !important;
+        background: white !important;
+        color: black !important;
+        border: 2px solid black !important;
+        padding: 2rem !important;
+        box-shadow: none !important;
+        display: block !important;
+        text-align: center !important;
+      }
+      #qrPrintMeta {
+        color: black !important;
+        font-size: 1.1rem !important;
+        margin-top: 15px !important;
+      }
+    }
+  </style>
+</head>
+<body data-page="evidence-details">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">📋</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--status-tampered); display:block; margin-top:10px;">🚪 Logout</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger">☰</button>
+          <h1 id="pageTitle" style="font-size:1.2rem; margin:0;">Evidence Details</h1>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock"></span>
+          <div class="user-area">
+            <span class="badge badge-verified">System Online</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <!-- Top Navigation / Action Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <a href="records.html" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+              <span>←</span> Back to Records
+            </a>
+          </div>
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;" id="detailsActionButtons">
+            <a id="btnVerifyEvidence" href="#" class="btn btn-primary" style="display: none;">✅ Verify Evidence</a>
+            <button id="btnGenerateQr" class="btn btn-secondary" style="display: none;">📱 Generate QR</button>
+            <a id="btnViewAudit" href="#" class="btn btn-secondary" style="display: none;">📋 View Audit History</a>
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="detailsLoading" style="display: block;">
+          <div class="glass-card" style="margin-bottom: 1.5rem; height: 180px; display: flex; align-items: center; justify-content: center;">
+            <div style="text-align: center;">
+              <div class="spinner" style="width: 32px; height: 32px; margin-bottom: 10px;"></div>
+              <div style="color: var(--text-muted); font-size: 0.9rem;">Loading evidence details...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 404 / Not Found State -->
+        <div id="detailsNotFound" style="display: none;">
+          <div class="glass-card" style="text-align: center; padding: 4rem 1.5rem;">
+            <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔎</div>
+            <h2 style="color: var(--status-tampered); margin-bottom: 0.75rem;">Evidence Record Not Found</h2>
+            <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto 1.5rem; line-height: 1.6;">
+              The requested evidence identifier does not exist or has been removed from the active registry.
+            </p>
+            <a href="records.html" class="btn btn-primary">Return to Evidence Records</a>
+          </div>
+        </div>
+
+        <!-- Main Details Content -->
+        <div id="detailsContent" style="display: none;">
+          <!-- Overview Header Card -->
+          <div class="glass-card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.25rem; margin-bottom: 1.25rem;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                  <h2 id="detEvidenceId" style="font-size: 1.7rem; margin: 0; color: var(--accent-cyan);"></h2>
+                  <span id="detStatusBadge"></span>
+                  <span id="detTypeBadge" class="badge" style="background: rgba(255,255,255,0.15); color: var(--text-main); border: 1px solid var(--border-color);"></span>
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.95rem;">
+                  Case Identifier: <strong id="detCaseId" style="color: var(--text-main);"></strong>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+              <h3 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.35rem;">Evidence Name</h3>
+              <div id="detEvidenceName" style="font-size: 1.15rem; font-weight: 600; color: var(--text-main);"></div>
+            </div>
+
+            <div>
+              <h3 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.35rem;">Description</h3>
+              <div id="detDescription" style="color: var(--text-muted); line-height: 1.6; white-space: pre-wrap; font-size: 0.95rem;"></div>
+            </div>
+          </div>
+
+          <!-- Grid: File Meta + Ledger Meta -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+            <!-- File Info Card -->
+            <div class="glass-card" style="padding: 1.5rem; margin-bottom: 0;">
+              <h2 style="font-size: 1.1rem; margin-top: 0; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                <span>📄</span> Stored Asset Details
+              </h2>
+              
+              <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.75rem; font-size: 0.9rem; align-items: center;">
+                <span style="color: var(--text-muted);">File Name:</span>
+                <span id="detFileName" style="font-weight: 500; word-break: break-all;"></span>
+
+                <span style="color: var(--text-muted);">File Size:</span>
+                <span id="detFileSize" style="font-weight: 500;"></span>
+
+                <span style="color: var(--text-muted);">MIME Type:</span>
+                <span id="detMimeType" style="font-weight: 500; font-family: monospace;"></span>
+
+                <span style="color: var(--text-muted);">Uploaded By:</span>
+                <span id="detUploadedBy" style="font-weight: 500;"></span>
+
+                <span style="color: var(--text-muted);">Registered At:</span>
+                <span id="detCreatedAt" style="font-weight: 500;"></span>
+
+                <span style="color: var(--text-muted);">Last Verified:</span>
+                <span id="detVerifiedAt" style="font-weight: 500;"></span>
+              </div>
+
+              <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.4rem; font-weight: 600;">
+                  Cryptographic SHA-256 Digest:
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.3); padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                  <span id="detHash" style="font-family: monospace; font-size: 0.8rem; word-break: break-all; color: var(--accent-cyan); flex: 1;"></span>
+                  <button type="button" id="copyHashBtn" class="btn-copy-sm" style="padding: 4px 8px;">Copy</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Blockchain Ledger Card -->
+            <div class="glass-card" style="padding: 1.5rem; margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <h2 style="font-size: 1.1rem; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <span>⛓</span> Blockchain Ledger Block
+                </h2>
+                <a href="blockchain.html" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: auto;">
+                  View Chain
+                </a>
+              </div>
+
+              <div id="detBlockContainer">
+                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.75rem; font-size: 0.9rem; align-items: center; margin-bottom: 1rem;">
+                  <span style="color: var(--text-muted);">Block Number:</span>
+                  <strong id="detBlockNumber" style="color: var(--text-main);"></strong>
+
+                  <span style="color: var(--text-muted);">Timestamp:</span>
+                  <span id="detBlockTime"></span>
+                </div>
+
+                <div style="margin-bottom: 0.75rem;">
+                  <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">Previous Block Hash:</div>
+                  <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.3); padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); border-left: 2px solid #ff007f;">
+                    <span id="detPrevHash" style="font-family: monospace; font-size: 0.75rem; word-break: break-all; flex: 1;"></span>
+                    <button type="button" id="copyPrevHashBtn" class="btn-copy-sm">Copy</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">Current Block Hash:</div>
+                  <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.3); padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); border-left: 2px solid #00f2fe;">
+                    <span id="detCurrentHash" style="font-family: monospace; font-size: 0.75rem; word-break: break-all; flex: 1;"></span>
+                    <button type="button" id="copyCurrentHashBtn" class="btn-copy-sm">Copy</button>
+                  </div>
+                </div>
+              </div>
+              <div id="detNoBlockContainer" style="display: none; color: var(--text-muted); font-size: 0.9rem;">
+                No blockchain block assigned to this evidence record yet.
+              </div>
+            </div>
+          </div>
+
+          <!-- Verification History Card -->
+          <div class="glass-card" style="padding: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h2 style="font-size: 1.1rem; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <span>🔬</span> Verification History
+              </h2>
+              <span id="verificationsCount" style="color: var(--text-muted); font-size: 0.85rem;"></span>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table responsive-evidence-table">
+                <thead>
+                  <tr>
+                    <th>Verification ID</th>
+                    <th>Date & Time</th>
+                    <th>Result</th>
+                    <th>Submitted File</th>
+                    <th>Chain Consistent</th>
+                    <th>Verified By</th>
+                    <th>IP Address</th>
+                  </tr>
+                </thead>
+                <tbody id="verificationsTbody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="noVerificationsMsg" style="display: none; text-align: center; padding: 2rem 1rem; color: var(--text-muted);">
+              No verification attempts recorded for this evidence record yet.
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer class="page-footer">
+        &copy; 2026 EvidenceGuard — Tamper-Evident Digital Forensics System
+      </footer>
+    </div>
+  </div>
+
+  <!-- QR Code Modal -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal-content" style="max-width: 480px; text-align: center;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="margin: 0; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px;">
+          <span>📱</span> Evidence Verification QR Code
+        </h3>
+        <button type="button" id="closeQrModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+
+      <!-- Warning banner if URL contains localhost -->
+      <div id="qrLocalhostWarning" style="display: none; background: rgba(243, 156, 18, 0.15); border: 1px solid var(--status-pending); color: var(--status-pending); padding: 0.75rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem; text-align: left; line-height: 1.4;">
+        ⚠️ <strong>Notice:</strong> This QR code uses <code>localhost</code>. Mobile devices on your Wi-Fi cannot open localhost links. Set <code>PUBLIC_BASE_URL</code> to your computer's LAN IP (e.g. <code>http://192.168.x.x:3000</code>) in <code>.env</code> for live phone scanning.
+      </div>
+
+      <!-- Printable QR Section -->
+      <div id="qrPrintArea" style="background: white; padding: 1.25rem; border-radius: 8px; display: inline-block; margin-bottom: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+        <img id="qrImage" src="" alt="Verification QR Code" style="width: 240px; height: 240px; display: block; margin: 0 auto;">
+        <div id="qrPrintMeta" style="color: #1a202c; margin-top: 10px; font-family: monospace; font-size: 0.9rem; font-weight: bold; line-height: 1.4;">
+          <div id="qrPrintCaseId"></div>
+          <div id="qrPrintEvidenceId"></div>
+        </div>
+      </div>
+
+      <!-- Encoded URL display and copy button -->
+      <div style="margin-bottom: 1.25rem; text-align: left;">
+        <label class="form-label" for="qrUrlInput" style="font-size: 0.8rem; margin-bottom: 4px;">Encoded Public Verification URL:</label>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="qrUrlInput" class="form-control" readonly style="font-size: 0.8rem; font-family: monospace;">
+          <button type="button" id="copyQrUrlBtn" class="btn btn-secondary" style="padding: 0 1rem; min-height: 44px;">Copy</button>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        <button type="button" id="downloadPngBtn" class="btn btn-primary" style="flex: 1; min-width: 140px;">⬇ Download PNG</button>
+        <button type="button" id="printQrBtn" class="btn btn-secondary" style="flex: 1; min-width: 120px;">🖨 Print QR</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

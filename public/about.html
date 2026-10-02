@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About - EvidenceGuard</title>
+  <meta name="description" content="Detailed architecture, objectives, cryptographic mechanisms, limitations, and future scope of the EvidenceGuard system.">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+</head>
+<body data-page="about">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar Navigation">
+      <div class="sidebar-header">
+        <div class="logo-icon" aria-hidden="true">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon" aria-hidden="true">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon" aria-hidden="true">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon" aria-hidden="true">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon" aria-hidden="true">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📋</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon" aria-hidden="true">👥</span> Users</a>
+        <a href="about.html" class="nav-item active"><span class="nav-icon" aria-hidden="true">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--status-tampered); display:block; margin-top:10px;">🚪 Logout</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger" aria-label="Toggle navigation menu">☰</button>
+          <span style="font-size:1.1rem; font-weight:700; color:var(--text-main);">EvidenceGuard</span>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock" aria-label="Current system time"></span>
+          <div class="user-area">
+            <span class="badge badge-verified">System Operational</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content" style="overflow-y: auto; padding: 2rem 1.5rem;">
+        
+        <!-- Header Section with single H1 -->
+        <div style="margin-bottom: 2.5rem; text-align: center;">
+          <div class="prototype-badge">
+            <span aria-hidden="true">ℹ️</span> Blockchain-inspired hash-chain prototype
+          </div>
+          <h1 style="font-size: 2.4rem; font-weight: 800; margin-bottom: 0.5rem;">
+            About EvidenceGuard
+          </h1>
+          <p style="color: var(--text-muted); font-size: 1.05rem; max-width: 680px; margin: 0 auto;">
+            Engineering specification, cryptographic architecture, forensic custody workflows, and transparent system limitations.
+          </p>
+        </div>
+
+        <!-- Problem & Solution Cards -->
+        <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+          <div class="glass-card" style="padding: 1.75rem; border-left: 4px solid var(--status-tampered);">
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;" aria-hidden="true">⚠️</div>
+            <h2 style="font-size: 1.3rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.75rem;">The Problem</h2>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              Digital evidence is fundamentally intangible and vulnerable: electronic files can be trivially copied, modified, swapped, or deleted without leaving obvious physical traces. In courtrooms, a broken or unverifiable chain of custody risks evidence dismissal and failed prosecutions. Traditional relational databases are susceptible to privileged insider manipulation or unauthorized file replacement on server storage.
+            </p>
+          </div>
+
+          <div class="glass-card" style="padding: 1.75rem; border-left: 4px solid var(--status-verified);">
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;" aria-hidden="true">🛡️</div>
+            <h2 style="font-size: 1.3rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.75rem;">The Solution</h2>
+            <p style="color: var(--text-muted); line-height: 1.6; font-size: 0.92rem;">
+              EvidenceGuard pairs SHA-256 cryptographic hashing with a secure database, an automated verification engine, an immutable hash-linked block ledger, and a cryptographically linked append-only audit trail. Any alteration of a registered digital artifact—even a single bit in a gigabyte video—mathematically diverges from the recorded block hash, enabling instant, irrefutable tamper detection.
+            </p>
+          </div>
+        </section>
+
+        <!-- Project Objectives -->
+        <section class="glass-card" style="padding: 1.75rem; margin-bottom: 3rem;">
+          <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem; color: var(--accent-cyan);">
+            Project Objectives
+          </h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="color: var(--status-verified); font-weight: bold;">✔</span>
+              <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;"><strong style="color: var(--text-main);">Integrity Assurance:</strong> Provide bit-exact verification of stored and submitted forensic assets.</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="color: var(--status-verified); font-weight: bold;">✔</span>
+              <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;"><strong style="color: var(--text-main);">Tamper Detection:</strong> Detect and pinpoint unauthorized modifications across all file types.</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="color: var(--status-verified); font-weight: bold;">✔</span>
+              <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;"><strong style="color: var(--text-main);">Chain of Custody:</strong> Guarantee chronological, append-only traceability from intake to presentation.</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="color: var(--status-verified); font-weight: bold;">✔</span>
+              <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;"><strong style="color: var(--text-main);">Granular Access Control:</strong> Enforce role-based boundaries preventing unauthorized uploads or record tampering.</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="color: var(--status-verified); font-weight: bold;">✔</span>
+              <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;"><strong style="color: var(--text-main);">Demonstration of Blockchain Concepts:</strong> Showcase block chaining, prevHash linkage, and hash verification in an approachable web prototype.</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <span style="color: var(--status-verified); font-weight: bold;">✔</span>
+              <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;"><strong style="color: var(--text-main);">Public Verification:</strong> Enable third-party verification via QR codes without exposing sensitive backend infrastructure.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Architecture Flow Section -->
+        <section style="margin-bottom: 3rem;">
+          <div style="text-align: center; margin-bottom: 1.5rem;">
+            <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 0.35rem;">System Architecture</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">End-to-end request flow and cryptographic boundary enforcement</p>
+          </div>
+
+          <div class="arch-diagram" aria-label="Architecture Data Flow Diagram">
+            <div class="arch-node">Browser</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node">Frontend UI</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node">Express REST API</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node">Auth & Authorization (RBAC)</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node">Evidence Service</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node">SHA-256 Engine</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node">MongoDB</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node" style="border-color: var(--accent-cyan);">Hash Chain (Blocks)</div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node" style="border-color: var(--status-verified);">Audit Trail (Hashed)</div>
+          </div>
+        </section>
+
+        <!-- System Workflow -->
+        <section style="margin-bottom: 3rem;">
+          <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 1.25rem;">Custody & Verification Workflow</h2>
+          
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div class="glass-card" style="padding: 1.25rem; display: flex; gap: 1rem; align-items: flex-start;">
+              <div class="workflow-step-num" style="margin: 0; flex-shrink: 0;">1</div>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Authentication & RBAC Enforcement</h3>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0; line-height: 1.5;">Operators authenticate using salted bcrypt credentials. The server sets an HTTP-only JWT cookie. Each API request passes through role verification.</p>
+              </div>
+            </div>
+
+            <div class="glass-card" style="padding: 1.25rem; display: flex; gap: 1rem; align-items: flex-start;">
+              <div class="workflow-step-num" style="margin: 0; flex-shrink: 0;">2</div>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Evidence Upload & Server-Side Hashing</h3>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0; line-height: 1.5;">The investigator submits a file and metadata. The server streams the payload to compute the authoritative SHA-256 digest and verifies it against any optional client hash.</p>
+              </div>
+            </div>
+
+            <div class="glass-card" style="padding: 1.25rem; display: flex; gap: 1rem; align-items: flex-start;">
+              <div class="workflow-step-num" style="margin: 0; flex-shrink: 0;">3</div>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Storage & Block Sealing</h3>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0; line-height: 1.5;">The binary is saved to protected disk storage using an opaque UUID storage key. The metadata and hash are appended into a new block linked to the latest ledger block.</p>
+              </div>
+            </div>
+
+            <div class="glass-card" style="padding: 1.25rem; display: flex; gap: 1rem; align-items: flex-start;">
+              <div class="workflow-step-num" style="margin: 0; flex-shrink: 0;">4</div>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Cryptographic Audit Event Ingestion</h3>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0; line-height: 1.5;">Events are logged with user ID, action, timestamp, IP, and previous audit entry hash, guaranteeing that the log trail cannot be truncated or retroactively edited.</p>
+              </div>
+            </div>
+
+            <div class="glass-card" style="padding: 1.25rem; display: flex; gap: 1rem; align-items: flex-start;">
+              <div class="workflow-step-num" style="margin: 0; flex-shrink: 0;">5</div>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Forensic Verification</h3>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0; line-height: 1.5;">During court proceedings, an analyst submits the evidence file. The system computes its current hash, performs timing-safe buffer comparison against the block ledger, and returns a verified or tampered verdict.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Transparent Limitations Section (MANDATORY & SPECIFIC) -->
+        <section class="limitations-box" aria-label="Transparent Limitations">
+          <div class="limitations-title">
+            <span>⚠️</span> Transparent System Limitations
+          </div>
+          <p style="color: #ffcccc; font-size: 0.9rem; margin-bottom: 1rem; line-height: 1.5;">
+            In keeping with academic integrity and rigorous cybersecurity principles, EvidenceGuard explicitly acknowledges the following design and architectural boundaries:
+          </p>
+          <ul class="limitations-list">
+            <li>
+              <strong>Centralized Ledger Storage:</strong> The ledger blocks and audit logs live in the same MongoDB instance as operational records. It is a single-node prototype, not a decentralized distributed consensus network.
+            </li>
+            <li>
+              <strong>Database Administrator Compromise:</strong> A database administrator with root access who selectively recomputes downstream SHA-256 hashes could theoretically rewrite both the block chain and the audit chain.
+            </li>
+            <li>
+              <strong>Origin Authenticity vs. Integrity:</strong> SHA-256 hashes prove that a file matches what was registered at intake. They do NOT prove that the file was authentic when initially gathered in the physical world, nor do they prove who originally created it.
+            </li>
+            <li>
+              <strong>Standard Server Storage:</strong> Digital files are stored on server disk storage, not inside a certified Hardware Security Module (HSM) or hardware-enforced Write Once Read Many (WORM) storage appliance.
+            </li>
+            <li>
+              <strong>No Automated Password Reset Flow:</strong> Password reset currently requires administrative database intervention; there is no automated email-based or self-service password recovery flow implemented in this prototype.
+            </li>
+            <li>
+              <strong>Sequential Case ID Guessability:</strong> The public QR verification endpoint uses sequential Case IDs (<span class="mono">EG-YYYY-NNNN</span>), which could be sequentially enumerated without external rate limiting or random GUID identifiers.
+            </li>
+          </ul>
+        </section>
+
+        <!-- Future Scope Section (10 Master Items) -->
+        <section style="margin-bottom: 3rem;">
+          <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 1rem;">Future Scope & Production Roadmap</h2>
+          <div class="scope-grid">
+            <div class="scope-item">
+              <span class="scope-item-num">01</span>
+              <div>
+                <div class="scope-item-title">Digital Signatures</div>
+                <div class="scope-item-desc">Asymmetric key signing (ECDSA / Ed25519) tying evidence to individual verified officers.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">02</span>
+              <div>
+                <div class="scope-item-title">Real Blockchain (Ethereum / Solidity)</div>
+                <div class="scope-item-desc">Decentralized smart contracts to anchor block roots onto a public ledger.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">03</span>
+              <div>
+                <div class="scope-item-title">IPFS Distributed Storage</div>
+                <div class="scope-item-desc">Decentralized peer-to-peer content addressing for tamper-proof storage resilience.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">04</span>
+              <div>
+                <div class="scope-item-title">Cloud Storage WORM Policy</div>
+                <div class="scope-item-desc">AWS S3 Object Lock and Azure Immutable Blobs with legal hold retention.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">05</span>
+              <div>
+                <div class="scope-item-title">Advanced Chain of Custody</div>
+                <div class="scope-item-desc">Multi-party transfer logs, custodian signatures, and physical laboratory tracking.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">06</span>
+              <div>
+                <div class="scope-item-title">Automated Notifications</div>
+                <div class="scope-item-desc">Instant SIEM, email, and SMS alerts when tamper detections occur.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">07</span>
+              <div>
+                <div class="scope-item-title">AI Forensic Classification</div>
+                <div class="scope-item-desc">Automated content tagging, face redaction, and forensic triage models.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">08</span>
+              <div>
+                <div class="scope-item-title">Forensic Analysis Tool Integration</div>
+                <div class="scope-item-desc">Direct export/import connectors for Autopsy, Volatility, and EnCase disk images.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">09</span>
+              <div>
+                <div class="scope-item-title">Multi-Organization Support</div>
+                <div class="scope-item-desc">Multi-tenant isolation and secure cross-agency evidence sharing.</div>
+              </div>
+            </div>
+            <div class="scope-item">
+              <span class="scope-item-num">10</span>
+              <div>
+                <div class="scope-item-title">Hardware Security Modules (HSM)</div>
+                <div class="scope-item-desc">FIPS 140-2 Level 3 physical cryptographic token support for key management.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="page-footer" style="padding: 2rem 1.5rem; border-top: 1px solid var(--border-color); text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        <div style="display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+          <a href="index.html">Home</a>
+          <a href="dashboard.html">Dashboard</a>
+          <a href="records.html">Records</a>
+          <a href="verify.html">Verify</a>
+          <a href="blockchain.html">Blockchain</a>
+          <a href="audit.html">Audit</a>
+        </div>
+        <p style="margin-bottom: 0.5rem;">
+          <strong>EvidenceGuard</strong> &copy; 2026 — Tamper-Evident Digital Forensics System
+        </p>
+        <p style="font-size: 0.78rem; opacity: 0.75;">
+          Academic Capstone / Engineering Prototype — Digital Forensics & Cryptographic Evidence Integrity.
+        </p>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

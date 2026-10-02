@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EvidenceGuard - Digital Evidence Protection & Verification System</title>
+  <meta name="description" content="Digital evidence protection and verification platform using SHA-256 cryptographic hashing and a blockchain-inspired hash-chain prototype to detect unauthorized modification.">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+</head>
+<body data-page="index">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar Navigation">
+      <div class="sidebar-header">
+        <div class="logo-icon" aria-hidden="true">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon" aria-hidden="true">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon" aria-hidden="true">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon" aria-hidden="true">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon" aria-hidden="true">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📋</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon" aria-hidden="true">👥</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon" aria-hidden="true">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">Guest</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Public Visitor</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--accent-cyan); display:block; margin-top:10px;">🔑 Login</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger" aria-label="Toggle navigation menu">☰</button>
+          <span style="font-size:1.1rem; font-weight:700; color:var(--text-main);">EvidenceGuard</span>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock" aria-label="Current system time"></span>
+          <div class="user-area">
+            <span class="badge badge-verified">System Operational</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content" style="overflow-y: auto; padding: 2rem 1.5rem;">
+        
+        <!-- Hero Section -->
+        <section class="hero-section" style="text-align: center; max-width: 960px; margin: 0 auto 3rem; padding: 2.5rem 1rem;">
+          <div class="prototype-badge">
+            <span aria-hidden="true">🛡️</span> Blockchain-inspired hash-chain prototype
+          </div>
+
+          <h1 style="font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; letter-spacing: -0.5px;">
+            EvidenceGuard
+          </h1>
+          <p style="font-size: clamp(1.1rem, 2.5vw, 1.45rem); font-weight: 600; color: var(--accent-cyan); margin-bottom: 1.25rem;">
+            Digital Evidence Protection & Verification System
+          </p>
+          <p style="font-size: 1.05rem; color: var(--text-muted); max-width: 720px; margin: 0 auto 2.25rem; line-height: 1.6;">
+            A cryptographic integrity platform utilizing server-side SHA-256 digests and an immutable, block-sequenced hash-chain to <strong style="color: #fff; text-decoration: underline; text-decoration-color: var(--accent-cyan);">DETECT</strong> unauthorized modification across forensic chains of custody.
+          </p>
+
+          <!-- Login-Aware Action Buttons -->
+          <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.25rem;">
+            <a href="login.html?next=dashboard.html" id="btnHeroDashboard" class="btn btn-primary" style="padding: 12px 24px; font-weight: 600; font-size: 1rem;">
+              📊 Open Dashboard
+            </a>
+            <a href="login.html?next=upload.html" id="btnHeroUpload" class="btn btn-secondary" style="padding: 12px 24px; font-weight: 600; font-size: 1rem;">
+              ⬆ Upload Evidence
+            </a>
+            <a href="verify.html" id="btnHeroVerify" class="btn btn-secondary" style="padding: 12px 24px; font-weight: 600; font-size: 1rem; border-color: rgba(0, 212, 255, 0.4);">
+              ✅ Verify Evidence
+            </a>
+          </div>
+
+          <!-- Viewer Role Explanation (dynamically toggled) -->
+          <p id="uploadExplanation" style="display: none; font-size: 0.85rem; color: var(--status-pending); margin: 0 auto; max-width: 480px;">
+            ⚠️ Upload Evidence requires Investigator or Admin role.
+          </p>
+
+          <!-- Genuine Live System Statistics (No fake numbers) -->
+          <div class="stats-strip" id="statsStrip" aria-label="Live System Statistics">
+            <div class="stat-strip-item">
+              <div class="stat-strip-val" id="statEvidenceCount">0</div>
+              <div class="stat-strip-lbl">Registered Records</div>
+            </div>
+            <div class="stat-strip-item" style="border-left: 1px solid var(--border-color); padding-left: 2.5rem;">
+              <div class="stat-strip-val" id="statVerifiedCount">0</div>
+              <div class="stat-strip-lbl">Verified Items</div>
+            </div>
+            <div class="stat-strip-item" style="border-left: 1px solid var(--border-color); padding-left: 2.5rem;">
+              <div class="stat-strip-val" id="statBlockCount">1</div>
+              <div class="stat-strip-lbl">Sealed Blocks</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Visual Workflow Section -->
+        <section style="margin-bottom: 4rem;">
+          <div style="text-align: center; margin-bottom: 1.5rem;">
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">Tamper-Detection Workflow</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Cryptographic state transformation from raw file ingestion to instant integrity verdict</p>
+          </div>
+
+          <div class="workflow-track" aria-label="Visual Evidence Workflow">
+            <div class="workflow-step">
+              <div class="workflow-step-num" aria-hidden="true">1</div>
+              <div class="workflow-step-title">Digital Evidence</div>
+              <div class="workflow-step-desc">Raw forensic artifact ingested (Image, Video, Audio, Document).</div>
+            </div>
+            <div class="workflow-connector" aria-hidden="true">&rarr;</div>
+
+            <div class="workflow-step">
+              <div class="workflow-step-num" aria-hidden="true">2</div>
+              <div class="workflow-step-title">SHA-256 Hash</div>
+              <div class="workflow-step-desc">Server streams 256-bit cryptographic fingerprint of bitstream.</div>
+            </div>
+            <div class="workflow-connector" aria-hidden="true">&rarr;</div>
+
+            <div class="workflow-step">
+              <div class="workflow-step-num" aria-hidden="true">3</div>
+              <div class="workflow-step-title">Secure Database</div>
+              <div class="workflow-step-desc">Metadata anchored; duplicate hashes identified and prevented.</div>
+            </div>
+            <div class="workflow-connector" aria-hidden="true">&rarr;</div>
+
+            <div class="workflow-step">
+              <div class="workflow-step-num" aria-hidden="true">4</div>
+              <div class="workflow-step-title">Hash Chain</div>
+              <div class="workflow-step-desc">Record sealed into a block cryptographically chained to previous.</div>
+            </div>
+            <div class="workflow-connector" aria-hidden="true">&rarr;</div>
+
+            <div class="workflow-step">
+              <div class="workflow-step-num" aria-hidden="true">5</div>
+              <div class="workflow-step-title">Verification</div>
+              <div class="workflow-step-desc">Uploaded verification file is hashed and matched with ledger.</div>
+            </div>
+            <div class="workflow-connector" aria-hidden="true">&rarr;</div>
+
+            <div class="workflow-step" style="border-color: rgba(0, 212, 255, 0.4);">
+              <div class="workflow-step-num" style="background: linear-gradient(135deg, var(--status-verified), var(--status-tampered));" aria-hidden="true">6</div>
+              <div class="workflow-step-title">Verified / Tampered</div>
+              <div class="workflow-step-desc">Binary verdict: bit-exact match or immediate tamper alert.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Features Section -->
+        <section style="margin-bottom: 4rem;">
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">Core Security Features</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Comprehensive evidence protection, verification, and auditability</p>
+          </div>
+
+          <div class="features-grid">
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">⬆️</div>
+              <h3 class="feature-title">Upload & SHA-256 Hashing</h3>
+              <p class="feature-desc">Streams uploaded files through cryptographic SHA-256 engines to calculate deterministic 64-character lowercase hex hashes server-side.</p>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">🛑</div>
+              <h3 class="feature-title">Duplicate Detection</h3>
+              <p class="feature-desc">Pre-upload hash indexing detects duplicate evidence submissions instantly, enforcing integrity and logging duplicate collision attempts.</p>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">✅</div>
+              <h3 class="feature-title">Cryptographic Verification</h3>
+              <p class="feature-desc">Compare suspect or presented files against registered evidence records to mathematically verify identical content or highlight altered bytes.</p>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">⛓️</div>
+              <h3 class="feature-title">Hash-Chain Ledger</h3>
+              <p class="feature-desc">Every evidence record is sealed into an immutable block linking to its predecessor's cryptographic hash, preventing backdated record alterations.</p>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">📋</div>
+              <h3 class="feature-title">Append-Only Audit Trail</h3>
+              <p class="feature-desc">Full forensic activity logging with sequential chaining. Every intake, verification, tamper event, and deletion is recorded immutably.</p>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">📱</div>
+              <h3 class="feature-title">QR Code Verification</h3>
+              <p class="feature-desc">Generate public-safe QR labels linked to unique Case IDs. Legal teams and external parties can inspect evidence status without authentication.</p>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">👥</div>
+              <h3 class="feature-title">Role-Based Access Control</h3>
+              <p class="feature-desc">Granular permissions for Admins, Investigators, and Viewers. Ensures strict least-privilege access across evidence lifecycles.</p>
+            </div>
+
+            <div class="feature-box">
+              <div class="feature-icon" aria-hidden="true">📊</div>
+              <h3 class="feature-title">Live Forensic Dashboard</h3>
+              <p class="feature-desc">Real-time telemetry, 7-day intake volume trends, recent chain of custody activities, and one-click cryptographic ledger validation.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section style="margin-bottom: 4rem;">
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">How It Works</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Step-by-step custody maintenance from acquisition to court presentation</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+            <div class="glass-card" style="padding: 1.5rem;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem;">
+                <span class="workflow-step-num" style="margin:0;">1</span>
+                <h3 style="font-size: 1.1rem; margin:0;">Authenticate</h3>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5;">Investigators sign in with JWT authentication and bcrypt password verification, scoping capabilities to their assigned operational role.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1.5rem;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem;">
+                <span class="workflow-step-num" style="margin:0;">2</span>
+                <h3 style="font-size: 1.1rem; margin:0;">Acquire & Stream</h3>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5;">The forensic file is uploaded alongside descriptive metadata. The server streams the payload through SHA-256 hashing to generate a unique digital fingerprint.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1.5rem;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem;">
+                <span class="workflow-step-num" style="margin:0;">3</span>
+                <h3 style="font-size: 1.1rem; margin:0;">Seal into Block</h3>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5;">The evidence hash is bundled into a sequential block that references the previous block's hash, forming an unbroken, tamper-evident cryptographic chain.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1.5rem;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem;">
+                <span class="workflow-step-num" style="margin:0;">4</span>
+                <h3 style="font-size: 1.1rem; margin:0;">Log Audit Event</h3>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5;">An append-only audit entry logs the operator, timestamp, action, and resulting block number into the hashed audit trail.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1.5rem;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem;">
+                <span class="workflow-step-num" style="margin:0;">5</span>
+                <h3 style="font-size: 1.1rem; margin:0;">Verify at Court</h3>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5;">Any party can upload a copy of the digital artifact. EvidenceGuard compares the file's current hash against the immutable ledger hash.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1.5rem;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem;">
+                <span class="workflow-step-num" style="margin:0;">6</span>
+                <h3 style="font-size: 1.1rem; margin:0;">Immediate Verdict</h3>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5;">If a single bit was modified, the system outputs a TAMPERED verdict, pinpoints character differences, and records a security incident.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Security Explanation Section -->
+        <section style="margin-bottom: 4rem;">
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">Security Architecture</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">What is protected and how EvidenceGuard guarantees chain-of-custody defense</p>
+          </div>
+
+          <div class="security-grid">
+            <div class="security-card">
+              <div class="security-card-title">🔐 bcrypt Password Hashing</div>
+              <p class="security-card-desc">User passwords are salted and hashed using bcrypt with an adaptive cost factor of 10. Passwords never reside in plaintext in database storage or logs.</p>
+            </div>
+
+            <div class="security-card">
+              <div class="security-card-title">🍪 Secure JWT Cookies</div>
+              <p class="security-card-desc">Session authentication tokens are stored in HTTP-only, SameSite cookies with strict expiration and no exposure to client JavaScript.</p>
+            </div>
+
+            <div class="security-card">
+              <div class="security-card-title">🛡️ Role-Based Access (RBAC)</div>
+              <p class="security-card-desc">Enforces server-side authorization middleware checking roles across every API endpoint. Viewers cannot upload; non-admins cannot delete or manage users.</p>
+            </div>
+
+            <div class="security-card">
+              <div class="security-card-title">⚡ Server-Side SHA-256 Hashing</div>
+              <p class="security-card-desc">Hashes are calculated server-side from binary file streams. Even if client-side validation is bypassed, the server enforces independent verification.</p>
+            </div>
+
+            <div class="security-card">
+              <div class="security-card-title">📋 Append-Only Audit Trail</div>
+              <p class="security-card-desc">Every audit log entry contains a deterministic hash linking to the previous entry's hash. Updates and deletions are blocked at the Mongoose middleware level.</p>
+            </div>
+
+            <div class="security-card">
+              <div class="security-card-title">⛓️ Hash-Linked Block Ledger</div>
+              <p class="security-card-desc">Blocks are indexed and linked sequentially. Any attempt to modify a historical record breaks all downstream hashes, detected in sub-second verification runs.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Technology Stack Section -->
+        <section style="margin-bottom: 4rem;">
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">Technology Stack</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Engineered with dependable, high-performance web standards</p>
+          </div>
+
+          <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <span class="badge" style="background: rgba(0, 212, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 8px 16px; font-size: 0.9rem;">Node.js v22</span>
+            <span class="badge" style="background: rgba(0, 212, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 8px 16px; font-size: 0.9rem;">Express.js</span>
+            <span class="badge" style="background: rgba(0, 212, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 8px 16px; font-size: 0.9rem;">MongoDB & Mongoose</span>
+            <span class="badge" style="background: rgba(0, 212, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 8px 16px; font-size: 0.9rem;">SHA-256 Cryptography</span>
+            <span class="badge" style="background: rgba(0, 212, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 8px 16px; font-size: 0.9rem;">Web Crypto API</span>
+            <span class="badge" style="background: rgba(0, 212, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 8px 16px; font-size: 0.9rem;">JWT & bcrypt</span>
+            <span class="badge" style="background: rgba(0, 212, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); padding: 8px 16px; font-size: 0.9rem;">Vanilla HTML5 & CSS3</span>
+          </div>
+        </section>
+
+        <!-- Future Scope Section (10 Master Items) -->
+        <section style="margin-bottom: 4rem;">
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">Future Roadmap & Scope</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Key engineering milestones for transition to enterprise decentralized forensics</p>
+          </div>
+
+          <div class="scope-grid">
+            <div class="scope-item">
+              <span class="scope-item-num">01</span>
+              <div>
+                <div class="scope-item-title">Digital Signatures</div>
+                <div class="scope-item-desc">Asymmetric public/private key pairs (ECDSA / Ed25519) for non-repudiation of evidence collectors.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">02</span>
+              <div>
+                <div class="scope-item-title">Real Blockchain Integration</div>
+                <div class="scope-item-desc">Transitioning from local hash-chains to Ethereum / Polygon smart contracts with immutable public gas timestamps.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">03</span>
+              <div>
+                <div class="scope-item-title">IPFS Distributed Storage</div>
+                <div class="scope-item-desc">Content-addressed storage via InterPlanetary File System to eliminate single-point storage failures.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">04</span>
+              <div>
+                <div class="scope-item-title">Cloud Storage WORM Locks</div>
+                <div class="scope-item-desc">Hardened S3 Object Lock and Azure Immutable Blob storage preventing file deletion or modification.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">05</span>
+              <div>
+                <div class="scope-item-title">Advanced Chain of Custody</div>
+                <div class="scope-item-desc">Physical custody transfers, laboratory check-in/out workflows, and barcode-scanned custodian handovers.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">06</span>
+              <div>
+                <div class="scope-item-title">Automated Alerts & Webhooks</div>
+                <div class="scope-item-desc">Real-time notifications via email, SMS, and SIEM webhooks upon any detected tamper or unauthorized deletion.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">07</span>
+              <div>
+                <div class="scope-item-title">AI Forensic Classification</div>
+                <div class="scope-item-desc">Automated scene triage, object detection, and metadata classification powered by localized neural networks.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">08</span>
+              <div>
+                <div class="scope-item-title">Forensic Analysis Tools</div>
+                <div class="scope-item-desc">Direct connectors for Autopsy, Volatility, and EnCase disk image parsing and artifact extraction.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">09</span>
+              <div>
+                <div class="scope-item-title">Multi-Organization Tenancy</div>
+                <div class="scope-item-desc">Cross-jurisdictional collaboration between police precincts, district attorneys, and independent defense experts.</div>
+              </div>
+            </div>
+
+            <div class="scope-item">
+              <span class="scope-item-num">10</span>
+              <div>
+                <div class="scope-item-title">Hardware Security Modules</div>
+                <div class="scope-item-desc">FIPS 140-2 Level 3 hardware security keys (YubiKey / PKCS#11) for cryptographic signing and key protection.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <footer class="page-footer" style="padding: 2rem 1.5rem; border-top: 1px solid var(--border-color); text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        <div style="display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+          <a href="dashboard.html">Dashboard</a>
+          <a href="records.html">Evidence Records</a>
+          <a href="verify.html">Verify Evidence</a>
+          <a href="blockchain.html">Blockchain Ledger</a>
+          <a href="audit.html">Audit Trail</a>
+          <a href="about.html">About & Limitations</a>
+        </div>
+        <p style="margin-bottom: 0.5rem;">
+          <strong>EvidenceGuard</strong> &copy; 2026 — Tamper-Evident Digital Forensics System
+        </p>
+        <p style="font-size: 0.78rem; opacity: 0.75;">
+          Academic Capstone / Engineering Prototype — Digital Forensics & Cryptographic Evidence Integrity.
+        </p>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

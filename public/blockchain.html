@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blockchain - EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+  <style>
+    .chain-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 0;
+    }
+    .block-card {
+      background: rgba(10, 25, 47, 0.7);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 255, 218, 0.2);
+      border-radius: 8px;
+      padding: 20px;
+      width: 100%;
+      max-width: 600px;
+      position: relative;
+      transition: transform 0.3s;
+    }
+    .block-card:hover {
+      transform: translateY(-2px);
+    }
+    .block-card.invalid {
+      border-color: var(--status-tampered);
+      box-shadow: 0 0 15px rgba(255, 77, 77, 0.3);
+    }
+    .downstream {
+      opacity: 0.6;
+    }
+    .chain-link {
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(to bottom, #64ffda, #0a192f);
+      margin: 0 auto;
+      border-radius: 2px;
+    }
+    .hash-display {
+      font-family: monospace;
+      font-size: 0.85rem;
+      background: rgba(0,0,0,0.3);
+      padding: 5px 10px;
+      border-radius: 4px;
+      word-break: break-all;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .hash-expandable.collapsed {
+      display: inline-block;
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .btn-copy {
+      background: none;
+      border: 1px solid #64ffda;
+      color: #64ffda;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.7rem;
+    }
+    .btn-copy:hover {
+      background: rgba(100,255,218,0.1);
+    }
+    .summary-strip {
+      display: flex;
+      justify-content: space-around;
+      background: rgba(10, 25, 47, 0.8);
+      border: 1px solid rgba(100, 255, 218, 0.2);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .tooltip {
+      position: relative;
+      cursor: help;
+      border-bottom: 1px dotted #ccc;
+    }
+    .tooltip:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #112240;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      border: 1px solid #64ffda;
+      z-index: 10;
+    }
+    .validation-banner {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .validation-banner.valid {
+      background: rgba(100, 255, 218, 0.1);
+      border: 1px solid #64ffda;
+      color: #64ffda;
+      display: block;
+    }
+    .validation-banner.invalid {
+      background: rgba(255, 77, 77, 0.1);
+      border: 1px solid var(--status-tampered);
+      color: var(--status-tampered);
+      display: block;
+    }
+  </style>
+</head>
+<body data-page="blockchain">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item active"><span class="nav-icon">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">📋</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <button id="logoutBtn" class="btn btn-outline w-100" style="margin-top: 10px; border-color: var(--status-tampered); color: var(--status-tampered);">🚪 Logout</button>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger">☰</button>
+          <h1 style="font-size:1.2rem; margin:0;" class="tooltip" data-tip="Blocks are linked with SHA-256. Stored in the project database, not a decentralized network.">Blockchain-inspired hash-chain prototype</h1>
+        </div>
+        <div class="topbar-right">
+          <span class="badge badge-verified">System Online</span>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <div class="summary-strip">
+          <div><span style="color:#8892b0">Total Blocks:</span> <strong id="bcTotal">0</strong></div>
+          <div><span style="color:#8892b0">Head Block #:</span> <strong id="bcHeadNum">-</strong></div>
+          <div><span style="color:#8892b0">Head Hash:</span> <strong id="bcHeadHash" style="font-family:monospace">-</strong></div>
+        </div>
+
+        <div id="validationBanner" class="validation-banner"></div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+          <h2>Ledger History</h2>
+          <button id="validateBtn" class="btn btn-primary" style="display:none;">🔍 Validate Blockchain</button>
+        </div>
+
+        <div class="chain-container" id="chainContainer">
+          <!-- Blocks will be populated here -->
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+          <button id="loadMoreBtn" class="btn btn-outline" style="display:none;">Load More Blocks</button>
+        </div>
+      </main>
+
+      <footer class="page-footer">
+        &copy; 2026 EvidenceGuard &mdash; Blockchain-Inspired Hash-Chain Prototype
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

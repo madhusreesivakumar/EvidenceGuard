@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify - EvidenceGuard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+  <style>
+    .step-card {
+      background: rgba(10, 25, 47, 0.7);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 255, 218, 0.2);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .step-header {
+      font-size: 1.1rem;
+      color: #64ffda;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge-result {
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge-result.verified {
+      background: rgba(46, 204, 113, 0.1);
+      border: 2px solid #2ecc71;
+      color: #2ecc71;
+    }
+    .badge-result.tampered {
+      background: rgba(231, 76, 60, 0.1);
+      border: 2px solid #e74c3c;
+      color: #e74c3c;
+      box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
+      animation: pulse-red 2s infinite;
+    }
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 15px rgba(231, 76, 60, 0.3); }
+      50% { box-shadow: 0 0 25px rgba(231, 76, 60, 0.6); }
+      100% { box-shadow: 0 0 15px rgba(231, 76, 60, 0.3); }
+    }
+    .hash-comparison {
+      font-family: monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+      background: rgba(0,0,0,0.3);
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    .hash-char { display: inline-block; }
+    .hash-diff { background: rgba(231, 76, 60, 0.5); color: white; border-radius: 2px; }
+    
+    .chain-warning {
+      background: rgba(243, 156, 18, 0.1);
+      border: 1px solid #f39c12;
+      color: #f39c12;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .history-table th, .history-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .history-table th { color: #8892b0; font-size: 0.9rem; }
+  </style>
+</head>
+<body data-page="verify">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item active"><span class="nav-icon">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">📋</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <button id="logoutBtn" class="btn btn-outline w-100" style="margin-top: 10px; border-color: var(--status-tampered); color: var(--status-tampered);">🚪 Logout</button>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger">☰</button>
+          <h1 style="font-size:1.2rem; margin:0;">Verify</h1>
+        </div>
+        <div class="topbar-right">
+          <span class="badge badge-verified">System Online</span>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <!-- Public Registered Evidence Record Card -->
+        <div class="glass-card" id="publicRecordCard" style="display: none; margin-bottom: 1.5rem; padding: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem;">
+            <div>
+              <div style="font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">Public Registry Inspection</div>
+              <h2 style="margin: 0; font-size: 1.3rem;">Registered Evidence Record</h2>
+            </div>
+            <div id="pubStatusBadge"></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; font-size: 0.9rem; margin-bottom: 1rem;">
+            <div><span style="color: var(--text-muted);">Case ID:</span> <strong id="pubCaseId" style="color: var(--text-main); font-family: monospace;"></strong></div>
+            <div><span style="color: var(--text-muted);">Evidence ID:</span> <strong id="pubEvidenceId" style="color: var(--text-main); font-family: monospace;"></strong></div>
+            <div><span style="color: var(--text-muted);">Evidence Type:</span> <span id="pubType" style="color: var(--text-main);"></span></div>
+            <div><span style="color: var(--text-muted);">Registered Date:</span> <span id="pubRegisteredAt" style="color: var(--text-main);"></span></div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 4px;">Cryptographic SHA-256 Digest (Registered):</div>
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--border-color);">
+              <span id="pubHash" style="font-family: monospace; font-size: 0.82rem; word-break: break-all; color: var(--accent-cyan); flex: 1;"></span>
+              <button type="button" id="pubCopyHashBtn" class="btn-copy-sm" style="padding: 4px 8px;">Copy</button>
+            </div>
+          </div>
+
+          <div style="background: rgba(0, 212, 255, 0.08); border-left: 3px solid var(--accent-cyan); padding: 0.75rem 1rem; border-radius: 4px; font-size: 0.85rem; color: #b8ecff; line-height: 1.4;">
+            ℹ️ <span id="pubNote"></span>
+          </div>
+
+          <!-- Guest Prompt: Shown only if not logged in -->
+          <div id="pubGuestPrompt" style="display: none; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color); text-align: center;">
+            <p style="color: var(--text-main); font-size: 1rem; margin-bottom: 0.75rem; font-weight: 500;">
+              Log in to verify a file against this record
+            </p>
+            <a id="pubLoginBtn" href="login.html" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">
+              🔐 Log In to Verify
+            </a>
+          </div>
+        </div>
+
+        <!-- Public 404 Error Card -->
+        <div class="glass-card" id="publicNotFoundCard" style="display: none; text-align: center; padding: 3rem 1.5rem; margin-bottom: 1.5rem;">
+          <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔍</div>
+          <h3 style="color: var(--status-tampered); margin-bottom: 0.5rem;">No evidence record found for this Case ID</h3>
+          <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 450px; margin: 0 auto;">
+            The requested Case ID does not exist in the public evidence ledger or has been removed.
+          </p>
+        </div>
+
+        <div class="grid-2" id="verificationGrid">
+          
+          <!-- Left Column -->
+          <div>
+            <div class="step-card" id="step1">
+              <div class="step-header"><span>1</span> Choose Evidence</div>
+              
+              <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn btn-primary" id="btnTypeEv" style="flex:1;">Evidence ID</button>
+                <button class="btn btn-outline" id="btnTypeCase" style="flex:1;">Case ID</button>
+              </div>
+
+              <input type="text" id="lookupId" class="w-100" placeholder="EV-0000" aria-label="Evidence ID or Case ID" style="padding:10px; margin-bottom:15px;">
+              <button class="btn btn-primary w-100" id="lookupBtn">Find Evidence</button>
+              
+              <div id="lookupError" style="color:var(--status-tampered); margin-top:10px; display:none;"></div>
+
+              <div id="evidenceInfo" style="margin-top:20px; display:none; background:rgba(0,0,0,0.2); padding:15px; border-radius:4px; border-left:3px solid #64ffda;">
+                <h4 style="margin:0 0 10px 0; color:#64ffda;">Evidence Found</h4>
+                <div style="font-size:0.9rem; display:grid; grid-template-columns: 80px 1fr; gap:8px;">
+                  <span style="color:#8892b0">Name:</span> <span id="infoName"></span>
+                  <span style="color:#8892b0">Type:</span> <span id="infoType"></span>
+                  <span style="color:#8892b0">File:</span> <span id="infoFile"></span>
+                  <span style="color:#8892b0">Status:</span> <span id="infoStatus"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-card" id="step2" style="opacity:0.5; pointer-events:none;">
+              <div class="step-header"><span>2</span> Upload File to Verify</div>
+              
+              <div id="vFileDrop" style="border: 2px dashed #8892b0; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: all 0.3s;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">📄</div>
+                <div>Click or drag file here</div>
+                <input type="file" id="vFileInput" aria-label="Upload File to Verify" style="display: none;">
+              </div>
+              
+              <div id="vFileInfo" style="margin-top: 15px; display: none;">
+                <div style="font-size:0.9rem;"><strong>File:</strong> <span id="vFileName"></span> (<span id="vFileSize"></span>)</div>
+                <div style="font-size:0.85rem; color:#8892b0; margin-top:5px; font-family:monospace; word-break:break-all;">
+                  <strong>Calculated in your browser (preview):</strong> <span id="vClientHash"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-card" id="step3" style="opacity:0.5; pointer-events:none;">
+              <div class="step-header"><span>3</span> Complete Verification</div>
+              <button class="btn btn-primary w-100" id="verifyBtn" style="padding:15px; font-size:1.1rem;">🔍 Verify Evidence</button>
+              <button class="btn btn-outline w-100" id="resetBtn" style="margin-top:10px; display:none;">Verify Another File</button>
+              <div id="verifyError" style="color:var(--status-tampered); margin-top:10px; text-align:center; display:none;"></div>
+            </div>
+          </div>
+
+          <!-- Right Column -->
+          <div>
+            <div class="step-card" id="resultCard" style="display:none;">
+              
+              <div id="chainWarning" class="chain-warning">
+                <strong>Warning:</strong> <span id="cwMsg"></span>
+                <br><a href="blockchain.html" style="color:#f1c40f; text-decoration:underline;">View Blockchain</a>
+              </div>
+
+              <div id="resultBadge" class="badge-result">
+                <div style="font-size:3rem;" id="rbIcon"></div>
+                <div id="rbTitle" style="font-size:1.5rem;"></div>
+                <div id="rbDesc" style="font-size:1rem; font-weight:normal;"></div>
+              </div>
+
+              <div id="hashDiffBox" style="display:none; margin-bottom:20px;">
+                <h4 style="margin:0 0 10px 0; color:var(--status-tampered);">Hash Mismatch Analysis</h4>
+                <div style="font-size:0.85rem; color:#aaa; margin-bottom:5px;">Original Hash:</div>
+                <div id="diffOriginal" class="hash-comparison" style="color:#fff;"></div>
+                <div style="font-size:0.85rem; color:#aaa; margin-bottom:5px;">Current Hash:</div>
+                <div id="diffCurrent" class="hash-comparison" style="color:#fff;"></div>
+                <div id="diffSummary" style="color:var(--status-tampered); font-size:0.9rem; font-weight:bold;"></div>
+              </div>
+
+              <h4 style="border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px; margin-bottom:15px;">Verification Details</h4>
+              <div style="display:grid; grid-template-columns: 120px 1fr; gap:10px; font-size:0.9rem;">
+                <span style="color:#8892b0">Evidence ID:</span> <strong id="detEvId"></strong>
+                <span style="color:#8892b0">Case ID:</span> <span id="detCaseId"></span>
+                <span style="color:#8892b0">Result:</span> <span id="detResult"></span>
+                <span style="color:#8892b0">Verified By:</span> <span id="detBy"></span>
+                <span style="color:#8892b0">Time:</span> <span id="detTime"></span>
+                <span style="color:#8892b0">Original Hash:</span> 
+                <div>
+                  <span id="detOrigHash" style="font-family:monospace; font-size:0.8rem; word-break:break-all;"></span>
+                  <button class="btn btn-outline" id="copyDetOrigHashBtn" style="padding:2px 5px; font-size:0.7rem; margin-top:5px;">Copy</button>
+                </div>
+                <span style="color:#8892b0">Current Hash:</span> 
+                <div>
+                  <span id="detCurrHash" style="font-family:monospace; font-size:0.8rem; word-break:break-all;"></span>
+                  <button class="btn btn-outline" id="copyDetCurrHashBtn" style="padding:2px 5px; font-size:0.7rem; margin-top:5px;">Copy</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-card" id="historyCard" style="display:none;">
+              <h3>Verification History</h3>
+              <div style="overflow-x:auto;">
+                <table class="history-table w-100" style="border-collapse:collapse;">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Result</th>
+                      <th>By</th>
+                      <th>Hash</th>
+                    </tr>
+                  </thead>
+                  <tbody id="historyTbody"></tbody>
+                </table>
+              </div>
+              <button class="btn btn-outline w-100" id="historyMoreBtn" style="margin-top:15px; display:none;">Load More</button>
+            </div>
+
+          </div>
+
+        </div>
+      </main>
+      <footer class="page-footer">
+        &copy; 2026 EvidenceGuard &mdash; Cryptographic Evidence Verification
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

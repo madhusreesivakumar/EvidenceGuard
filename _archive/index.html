@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EvidenceGuard – Evidence Protection System</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <div class="logo-icon">🔐</div>
+    EvidenceGuard
+  </a>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="index.html" class="active">Home</a></li>
+    <li><a href="dashboard.html">Dashboard</a></li>
+    <li><a href="upload.html">Upload Evidence</a></li>
+    <li><a href="records.html">Records</a></li>
+    <li><a href="verify.html">Verify</a></li>
+    <li><a href="blockchain.html">Blockchain</a></li>
+    <li><a href="about.html">About</a></li>
+  </ul>
+  <div class="hamburger" id="hamburger">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero-tag">🛡 Blockchain-Powered Evidence Security</div>
+  <h1>Evidence Protection System Using <span>Blockchain Technology</span></h1>
+  <p class="hero-sub">Secure. Verify. Protect Digital Evidence.</p>
+  <p class="hero-desc">
+    A secure platform for maintaining the integrity and authenticity of digital evidence
+    using SHA-256 hashing and blockchain-based protection.
+  </p>
+  <div class="hero-btns">
+    <a href="dashboard.html" class="btn btn-primary">📊 Open Dashboard</a>
+    <a href="upload.html"    class="btn btn-outline">⬆ Upload Evidence</a>
+  </div>
+
+  <!-- Flow Diagram -->
+  <div class="flow-diagram">
+    <div class="flow-step">📁 Digital Evidence</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step accent">🔑 SHA-256 Hash</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step">🗂 Secure Record</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step accent">⛓ Blockchain</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-step">✅ Verification</div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ===== ABOUT ===== -->
+<section class="section" style="background: var(--navy2);">
+  <div class="section-title">
+    <h2>About the Project</h2>
+    <p>Why EvidenceGuard? The problem and our solution.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:860px;margin:0 auto;">
+    <div class="card">
+      <div class="card-header">⚠️ The Problem</div>
+      <div class="card-body" style="color:var(--muted);font-size:0.9rem;line-height:1.8;">
+        Digital evidence can be easily copied, modified, or deleted. Traditional storage methods
+        provide no reliable way to confirm whether the evidence presented is original or has
+        been altered since collection.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">✅ Our Solution</div>
+      <div class="card-body" style="color:var(--muted);font-size:0.9rem;line-height:1.8;">
+        <strong style="color:var(--accent2)">EvidenceGuard</strong> generates a SHA-256 digital fingerprint
+        for each evidence file and uses hash-linked records (blockchain concept) to support
+        integrity verification — ensuring any tampering is immediately detectable.
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ===== FEATURES ===== -->
+<section class="section">
+  <div class="section-title">
+    <h2>Key Features</h2>
+    <p>Everything you need to protect and verify digital evidence.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🔒</div>
+      <h3>Digital Evidence Protection</h3>
+      <p>Securely store and manage all types of digital evidence in one place.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔑</div>
+      <h3>SHA-256 Hashing</h3>
+      <p>Every file is fingerprinted with a unique cryptographic SHA-256 hash.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⛓</div>
+      <h3>Blockchain-Based Integrity</h3>
+      <p>Hash-linked records ensure any modification breaks the chain.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">✅</div>
+      <h3>Evidence Verification</h3>
+      <p>Instantly verify whether evidence is original or has been tampered with.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ===== HOW IT WORKS ===== -->
+<section class="section" style="background: var(--navy2);">
+  <div class="section-title">
+    <h2>How It Works</h2>
+    <p>Simple, transparent, and verifiable in seconds.</p>
+  </div>
+  <div class="steps-list">
+    <div class="step-item">
+      <div class="step-num">1</div>
+      <h4>Upload Evidence</h4>
+      <p>Upload any digital file — image, video, audio, or document.</p>
+    </div>
+    <div class="step-item">
+      <div class="step-num">2</div>
+      <h4>Generate Hash</h4>
+      <p>The system creates a unique SHA-256 hash fingerprint of your file.</p>
+    </div>
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <h4>Register Record</h4>
+      <p>The evidence metadata and hash are saved as a secure record.</p>
+    </div>
+    <div class="step-item">
+      <div class="step-num">4</div>
+      <h4>Blockchain Linking</h4>
+      <p>Each record links to the previous block using the hash chain.</p>
+    </div>
+    <div class="step-item">
+      <div class="step-num">5</div>
+      <h4>Verify Anytime</h4>
+      <p>Re-upload the file later to confirm it is unchanged and verified.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <span>EvidenceGuard</span> | Digital Evidence Protection System &nbsp;|&nbsp; College Project Demo &nbsp;|&nbsp; 2026
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
