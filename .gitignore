@@ -9,3 +9,8 @@ logs
 demo-files/
 .DS_Store
 Thumbs.db
+
+# Blockchain / Hardhat build output
+blockchain/cache/
+blockchain/artifacts/
+blockchain/typechain-types/

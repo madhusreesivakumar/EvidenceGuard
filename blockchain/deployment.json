@@ -1,0 +1,9 @@
+{
+  "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "network": "hardhat",
+  "chainId": 31337,
+  "deployBlock": 1,
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "txHash": "0xdb416a8baaa74f8da53ca9be13bd08d1bc0a77683cac8e52cb99ed08a90ba837",
+  "deployedAt": "2026-10-03T06:06:16.808Z"
+}
