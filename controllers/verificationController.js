@@ -133,6 +133,24 @@ const verifyEvidence = async (req, res, next) => {
       });
     }
 
+    // Sprint 12: Chain of Custody automatic ACCESSED event
+    if (process.env.FEATURE_CUSTODY === 'true') {
+      try {
+        const { recordCustodyEvent } = require('../services/custodyService');
+        await recordCustodyEvent({
+          evidenceId: evidence.evidenceId,
+          type: 'ACCESSED',
+          user: req.user,
+          reason: `Evidence verified with result ${resultEnum}`,
+          location: 'Verification Service',
+          auto: true,
+          req
+        });
+      } catch (custodyErr) {
+        console.warn('[CUSTODY AUTO-VERIFY WARNING]', custodyErr.message);
+      }
+    }
+
     const responsePayload = {
       success: true,
       result: resultEnum,

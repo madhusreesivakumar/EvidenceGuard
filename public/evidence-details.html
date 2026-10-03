@@ -44,12 +44,14 @@
       </div>
       <nav class="sidebar-nav">
         <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
-        <a href="upload.html" class="nav-item"><span class="nav-icon">⬆</span> Upload Evidence</a>
+        <a href="upload.html" class="nav-item investigator-only"><span class="nav-icon">⬆</span> Upload Evidence</a>
         <a href="records.html" class="nav-item"><span class="nav-icon">🗂</span> Evidence Records</a>
         <a href="verify.html" class="nav-item"><span class="nav-icon">✅</span> Verify Evidence</a>
-        <a href="blockchain.html" class="nav-item"><span class="nav-icon">⛓</span> Blockchain</a>
-        <a href="audit.html" class="nav-item"><span class="nav-icon">📋</span> Audit Trail</a>
-        <a href="users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
+        <a href="blockchain.html" class="nav-item audit-only"><span class="nav-icon">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item audit-only"><span class="nav-icon">📋</span> Audit Trail</a>
+        <a href="custody.html" class="nav-item investigator-only"><span class="nav-icon">🤝</span> Custody Ledger</a>
+        <a href="keys.html" class="nav-item"><span class="nav-icon">🔑</span> Digital Keys</a>
+        <a href="users.html" class="nav-item users-only"><span class="nav-icon">👥</span> Users</a>
         <a href="about.html" class="nav-item"><span class="nav-icon">ℹ️</span> About</a>
       </nav>
       <div class="sidebar-footer">
@@ -82,8 +84,10 @@
             </a>
           </div>
           <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;" id="detailsActionButtons">
-            <a id="btnVerifyEvidence" href="#" class="btn btn-primary" style="display: none;">✅ Verify Evidence</a>
+            <button id="btnDownloadAsset" class="btn btn-primary" style="display: none; align-items: center; gap: 6px;">📥 Download Asset</button>
+            <a id="btnVerifyEvidence" href="#" class="btn btn-secondary" style="display: none;">✅ Verify Evidence</a>
             <button id="btnGenerateQr" class="btn btn-secondary" style="display: none;">📱 Generate QR</button>
+            <button id="btnValidateCustody" class="btn btn-secondary" style="display: none; align-items: center; gap: 6px;">🛡 Validate Custody</button>
             <a id="btnViewAudit" href="#" class="btn btn-secondary" style="display: none;">📋 View Audit History</a>
           </div>
         </div>
@@ -135,6 +139,42 @@
             <div>
               <h3 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.35rem;">Description</h3>
               <div id="detDescription" style="color: var(--text-muted); line-height: 1.6; white-space: pre-wrap; font-size: 0.95rem;"></div>
+            </div>
+          </div>
+
+          <!-- Custody Status & Quick Actions Banner -->
+          <div class="custody-status-banner" id="custodyBanner" style="display: none;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
+                <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Chain of Custody Status:</span>
+                <span id="detCustodyStatusBadge" class="custody-badge-incustody">IN CUSTODY</span>
+                <span id="detCustodyValidationBadge" class="badge" style="display: none;"></span>
+              </div>
+              <div style="font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                <span>Current Custodian:</span>
+                <strong id="detCustodianName" style="color: var(--accent-cyan); font-weight: 700;">Loading...</strong>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="custodyActionButtonsGroup">
+              <button type="button" id="btnCustodyTransfer" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.4rem 0.85rem; min-height: 36px; display: none;">🔄 Transfer Custody</button>
+              <button type="button" id="btnCustodyLogAction" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.85rem; min-height: 36px; display: none;">📝 Log Action</button>
+              <button type="button" id="btnCustodyRelease" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.85rem; min-height: 36px; display: none;">🏛️ Release Evidence</button>
+              <button type="button" id="btnCustodyReturn" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.4rem 0.85rem; min-height: 36px; display: none;">↩ Return to Custody</button>
+            </div>
+          </div>
+
+          <!-- Pending Transfer Alert Notice (if applicable) -->
+          <div id="custodyPendingAlert" class="custody-pending-alert" style="display: none;">
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <span style="font-size: 1.6rem;" aria-hidden="true">⏳</span>
+              <div>
+                <strong id="custodyPendingTitle" style="color: #ffb74d; font-size: 1rem;">Custody Handover Pending</strong>
+                <p id="custodyPendingDesc" style="color: var(--text-main); font-size: 0.9rem; margin: 4px 0 0 0; line-height: 1.4;"></p>
+                <div id="custodyPendingMeta" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;"></div>
+              </div>
+            </div>
+            <div id="custodyPendingActions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <!-- Dynamically populated: Accept, Reject, or Cancel buttons -->
             </div>
           </div>
 
@@ -219,6 +259,33 @@
             </div>
           </div>
 
+          <!-- Chain of Custody Timeline Card -->
+          <div class="glass-card" id="custodyTimelineCard" style="padding: 1.5rem; margin-bottom: 1.5rem; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h2 style="font-size: 1.15rem; margin: 0; display: flex; align-items: center; gap: 8px; font-weight: 700;">
+                  <span>🤝</span> Chain of Custody History
+                </h2>
+                <div style="color: var(--text-muted); font-size: 0.82rem; margin-top: 2px;">
+                  Chronological, cryptographic hash-chained lifecycle events with zero-tamper verification.
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="custodyEventsCount" class="badge" style="background: rgba(0, 212, 255, 0.15); color: var(--accent-cyan); border: 1px solid var(--accent-cyan);">0 events</span>
+                <button type="button" id="btnRefreshCustody" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: auto;" title="Refresh Custody Timeline">🔄 Refresh</button>
+              </div>
+            </div>
+
+            <!-- Vertical Stepped Timeline Container -->
+            <div id="custodyTimeline" class="custody-timeline">
+              <!-- Rendered dynamically -->
+            </div>
+
+            <div id="noCustodyMsg" style="display: none; text-align: center; padding: 2rem 1rem; color: var(--text-muted);">
+              No custody events recorded for this evidence record yet.
+            </div>
+          </div>
+
           <!-- Verification History Card -->
           <div class="glass-card" style="padding: 1.5rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -298,6 +365,173 @@
         <button type="button" id="downloadPngBtn" class="btn btn-primary" style="flex: 1; min-width: 140px;">⬇ Download PNG</button>
         <button type="button" id="printQrBtn" class="btn btn-secondary" style="flex: 1; min-width: 120px;">🖨 Print QR</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Custody: Transfer Modal -->
+  <div class="modal-overlay" id="transferModal">
+    <div class="modal-content" style="max-width: 520px; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="margin: 0; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px;">
+          <span>🔄</span> Initiate Custody Transfer
+        </h3>
+        <button type="button" id="closeTransferModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <form id="transferForm">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="transferRecipientSelect" style="display: block; margin-bottom: 6px; font-weight: 600;">Transfer Custody To Officer:</label>
+          <select id="transferRecipientSelect" class="form-control" style="width: 100%;" required>
+            <option value="">Loading eligible officers...</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="transferReason" style="display: block; margin-bottom: 6px; font-weight: 600;">Reason for Transfer (min 5 chars):</label>
+          <textarea id="transferReason" class="form-control" rows="3" placeholder="e.g. Transferred for specialized digital forensics image extraction" required style="width: 100%;"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="transferLocation" style="display: block; margin-bottom: 6px; font-weight: 600;">Physical / Department Location:</label>
+          <input type="text" id="transferLocation" class="form-control" placeholder="e.g. Cyber Forensics Lab B" style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="transferCondition" style="display: block; margin-bottom: 6px; font-weight: 600;">Condition / Security Notes:</label>
+          <input type="text" id="transferCondition" class="form-control" placeholder="e.g. Evidence pouch seal #88129 intact" style="width: 100%;">
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem; background: rgba(0,212,255,0.05); padding: 8px 12px; border-radius: 4px; border-left: 3px solid var(--accent-cyan);">
+          ℹ️ The recipient must explicitly accept this transfer before custody officially transfers. Transfers expire automatically after 72 hours if unaccepted.
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" id="cancelTransferBtn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="submitTransferBtn" class="btn btn-primary">Initiate Transfer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custody: Log Action Modal -->
+  <div class="modal-overlay" id="logActionModal">
+    <div class="modal-content" style="max-width: 520px; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="margin: 0; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px;">
+          <span>📝</span> Log Custody Activity
+        </h3>
+        <button type="button" id="closeLogActionModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <form id="logActionForm">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="logActionTypeSelect" style="display: block; margin-bottom: 6px; font-weight: 600;">Action Type:</label>
+          <select id="logActionTypeSelect" class="form-control" style="width: 100%;" required>
+            <option value="ANALYZED">ANALYZED – Forensic Analysis / Examination</option>
+            <option value="STORED">STORED – Secured in Evidence Storage Vault</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="logActionReason" style="display: block; margin-bottom: 6px; font-weight: 600;">Activity Summary (min 5 chars):</label>
+          <textarea id="logActionReason" class="form-control" rows="3" placeholder="Describe forensic analysis conducted or storage location..." required style="width: 100%;"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="logActionLocation" style="display: block; margin-bottom: 6px; font-weight: 600;">Location:</label>
+          <input type="text" id="logActionLocation" class="form-control" placeholder="e.g. Forensic Lab Bench 3" style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="logActionCondition" style="display: block; margin-bottom: 6px; font-weight: 600;">Condition / Integrity Notes:</label>
+          <input type="text" id="logActionCondition" class="form-control" placeholder="e.g. Bit-by-bit raw image verified against original SHA-256" style="width: 100%;">
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" id="cancelLogActionBtn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="submitLogActionBtn" class="btn btn-primary">Record Activity</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custody: Release Evidence Modal -->
+  <div class="modal-overlay" id="releaseModal">
+    <div class="modal-content" style="max-width: 520px; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="margin: 0; color: #ff4c4c; display: flex; align-items: center; gap: 8px;">
+          <span>🏛️</span> Release Evidence to External Party
+        </h3>
+        <button type="button" id="closeReleaseModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1rem;">
+        Releasing evidence marks it as held externally (e.g. Court presentation, external laboratory). While released, internal transfers are blocked until an Admin records a return.
+      </p>
+      <form id="releaseForm">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="releasePartyName" style="display: block; margin-bottom: 6px; font-weight: 600;">External Party / Recipient Name:</label>
+          <input type="text" id="releasePartyName" class="form-control" placeholder="e.g. Clerk of the Court Eleanor Vance" required style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="releasePartyOrg" style="display: block; margin-bottom: 6px; font-weight: 600;">External Organization / Court / Agency:</label>
+          <input type="text" id="releasePartyOrg" class="form-control" placeholder="e.g. Superior Court of California, Criminal Div." required style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="releaseReason" style="display: block; margin-bottom: 6px; font-weight: 600;">Legal / Evidentiary Reason (min 5 chars):</label>
+          <textarea id="releaseReason" class="form-control" rows="3" placeholder="e.g. Subpoena duces tecum trial presentation Case #CR-2026-99" required style="width: 100%;"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="releaseLocation" style="display: block; margin-bottom: 6px; font-weight: 600;">Destination Location:</label>
+          <input type="text" id="releaseLocation" class="form-control" placeholder="e.g. Courtroom 405" style="width: 100%;">
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" id="cancelReleaseBtn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="submitReleaseBtn" class="btn btn-primary" style="background: #e74c3c;">Release Evidence</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custody: Return to Custody Modal -->
+  <div class="modal-overlay" id="returnModal">
+    <div class="modal-content" style="max-width: 520px; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="margin: 0; color: #00c48c; display: flex; align-items: center; gap: 8px;">
+          <span>↩</span> Return Evidence to Custody (Admin)
+        </h3>
+        <button type="button" id="closeReturnModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <form id="returnForm">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="returnOfficerSelect" style="display: block; margin-bottom: 6px; font-weight: 600;">Assign Intake Custody To Officer:</label>
+          <select id="returnOfficerSelect" class="form-control" style="width: 100%;" required>
+            <option value="">Loading officers...</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="returnReason" style="display: block; margin-bottom: 6px; font-weight: 600;">Return Reason (min 5 chars):</label>
+          <textarea id="returnReason" class="form-control" rows="3" placeholder="e.g. Trial concluded; evidence returned from court into department vault" required style="width: 100%;"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="returnLocation" style="display: block; margin-bottom: 6px; font-weight: 600;">Intake Storage Location:</label>
+          <input type="text" id="returnLocation" class="form-control" placeholder="e.g. Main Vault Locker 12" style="width: 100%;">
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" id="cancelReturnBtn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="submitReturnBtn" class="btn btn-primary">Restore to Custody</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custody: Reject Transfer Modal -->
+  <div class="modal-overlay" id="rejectModal">
+    <div class="modal-content" style="max-width: 480px; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="margin: 0; color: #ff4c4c; display: flex; align-items: center; gap: 8px;">
+          <span>⛔</span> Reject Custody Handover
+        </h3>
+        <button type="button" id="closeRejectModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <form id="rejectForm">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="rejectReasonInput" style="display: block; margin-bottom: 6px; font-weight: 600;">Reason for Declining Custody (min 5 chars):</label>
+          <textarea id="rejectReasonInput" class="form-control" rows="3" placeholder="e.g. Packaging damaged, unverified tamper seal, incorrect officer assigned" required style="width: 100%;"></textarea>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" id="cancelRejectBtn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="submitRejectBtn" class="btn btn-primary" style="background: #e74c3c;">Decline Transfer</button>
+        </div>
+      </form>
     </div>
   </div>
 </body>

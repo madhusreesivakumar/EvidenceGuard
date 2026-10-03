@@ -27,6 +27,7 @@ Digital evidence (surveillance footage, forensic disk images, audio recordings, 
 - **One-Click Evidence Verification:** Upload any file at any time to compare its current SHA-256 against registered ledger records.
 - **QR Code & Public Verification Card:** Generates mobile-scannable QR codes pointing to sanitized, whitelisted public verification endpoints.
 - **Executive Real-Time Dashboard:** Real-time KPI statistics, 7-day verification activity charts, tamper rates, recent evidence, and on-demand ledger health validation.
+- **Cryptographic Chain of Custody & Handshake:** Complete physical and digital custody timeline with SHA-256 entry hashing and `prevHash` linkage. Features two-phase officer transfer handshakes (Initiate / Accept / Reject), automatic `ACCESSED` logging on download and verification, terminal external `RELEASED` states with Admin return override, dedicated Custody Hub (`custody.html`), and unbroken cryptographic chain validation.
 - **Safe Soft-Deletion:** Admin-only soft deletion preserving ledger blocks and cryptographic continuity while removing physical storage files.
 - **Hardened Security Architecture:** OWASP-compliant security headers (Helmet CSP, HSTS, no-sniff), rate limiting, NoSQL injection guards, and `HttpOnly` `SameSite=Lax` session cookies.
 
@@ -103,6 +104,7 @@ EvidenceGuard/
 ├── controllers/
 │   ├── authController.js           # Register, login, logout, /me
 │   ├── evidenceController.js       # Upload, query, search, details, soft-delete, QR
+│   ├── custodyController.js        # Custody timeline, transfers, handshake acceptance, officer listing
 │   ├── verificationController.js   # Hash comparison, verify attempt logging
 │   ├── blockchainController.js     # Block exploration & chain validation trigger
 │   ├── auditController.js          # Audit query, filter, & audit chain validation
@@ -115,6 +117,7 @@ EvidenceGuard/
 ├── models/
 │   ├── User.js                     # User schema (email, passwordHash, role, isActive)
 │   ├── Evidence.js                 # Evidence metadata, SHA-256 hash, soft-delete flags
+│   ├── CustodyEvent.js             # Custody log with sequential hash chaining & transfer tracking
 │   ├── Block.js                    # Ledger blocks (blockNumber, evidenceHash, previousHash)
 │   ├── AuditLog.js                 # Append-only audit records with sequential entryHash
 │   ├── Verification.js             # Historical record of all file verification attempts
@@ -126,16 +129,20 @@ EvidenceGuard/
 │   ├── login.html                  # Authentication & registration interface
 │   ├── dashboard.html              # Protection dashboard, analytics, and health status
 │   ├── evidence.html               # Evidence upload & catalog management
+│   ├── evidence-details.html       # Deep evidence inspector, custody timeline, action modals
+│   ├── custody.html                # Officer Chain of Custody Hub (Held, Incoming, Outgoing)
 │   ├── verify.html                 # Verification portal & public Case ID lookup
 │   ├── blockchain.html             # Blockchain ledger viewer & validator trigger
 │   ├── audit.html                  # Audit trail explorer & audit chain validator
 │   ├── users.html                  # User administration (Admin only)
+│   ├── keys.html                   # Officer digital key generation & zero-knowledge storage
 │   ├── style.css                   # Global Design System (Dark Navy, Cyan/Blue glow)
 │   ├── script.js                   # Shared layout logic, navbar, toasts, live clocks
 │   └── page-logic.js               # Page-specific business logic & API bindings
 ├── routes/
 │   ├── authRoutes.js               # /api/auth
-│   ├── evidenceRoutes.js           # /api/evidence
+│   ├── evidenceRoutes.js           # /api/evidence & /api/evidence/:id/custody
+│   ├── custodyRoutes.js            # /api/custody (/mine, /officers, /:id/accept, /reject, /cancel)
 │   ├── blockchainRoutes.js         # /api/blockchain
 │   ├── auditRoutes.js              # /api/audit
 │   ├── userRoutes.js               # /api/users
@@ -143,6 +150,7 @@ EvidenceGuard/
 │   └── publicRoutes.js             # /api/public
 ├── services/
 │   ├── hashService.js              # Streaming file SHA-256 calculation
+│   ├── custodyService.js           # Custody events, validation, optimistic locking, auto-logging
 │   ├── chainService.js             # Genesis block initialization & block creation
 │   ├── chainHash.js                # Deterministic block hashing formula
 │   ├── chainValidator.js           # 6-point ledger integrity validation engine
@@ -153,7 +161,10 @@ EvidenceGuard/
 │   ├── idService.js                # Atomic sequential ID generation (EV-0001, EG-YYYY-0001)
 │   └── tokenService.js             # JWT minting and validation
 ├── scripts/
-│   ├── run-all-tests.js            # Master test runner (npm test)
+│   ├── run-all-tests.js            # Master test runner (npm test) - 18 test suites
+│   ├── test-custody.js             # Custody model, API, RBAC, state machine & tamper tests
+│   ├── test-custody-ui.js          # Custody UI components & end-to-end handshake tests
+│   ├── migrate-custody.js          # Backfill legacy evidence with genesis custody records
 │   ├── test-e2e.js                 # 14-step live master-spec workflow test
 │   ├── create-admin.js             # Bootstrap administrator creation utility
 │   ├── seed.js                     # Demo data seeder with 4 realistic cases
@@ -256,13 +267,31 @@ EvidenceGuard/
 
 **Indexes:** `verificationId` (unique), compound `(evidenceId, verifiedAt: -1)`, `caseId`.
 
-### 6. `counters`
+### 6. `custodyevents`
+| Field | Type | Attributes | Description |
+| :--- | :--- | :--- | :--- |
+| `custodyId` | String | Required, Unique | Unique identifier format `CUST-YYYY-NNNN` |
+| `evidenceId` | String | Required, Index | Associated evidence identifier |
+| `seq` | Number | Required, Min: 1 | Sequential chain position for this evidence |
+| `type` | String | Enum (10 types) | `COLLECTED`, `TRANSFER_INITIATED`, `TRANSFER_ACCEPTED`, `TRANSFER_REJECTED`, `TRANSFER_CANCELLED`, `ACCESSED`, `ANALYZED`, `STORED`, `RELEASED`, `RETURNED` |
+| `actorUserId` | ObjectId | Required, Ref: `User` | Officer performing or logging the action |
+| `toUserId` | ObjectId | Optional, Ref: `User` | Designee recipient for transfers |
+| `reason` | String | Required, 5-500 chars | Justification or case note for custody event |
+| `location` | String | Max 120 chars | Physical storage room, lab, or department |
+| `conditionNotes`| String | Max 500 chars | Tamper seal integrity or packaging notes |
+| `occurredAt` | Date | Default: `Date.now` | Event occurrence timestamp |
+| `prevHash` | String | Required, Length 64 | `entryHash` of seq `N-1` (or 16 zeros for genesis) |
+| `entryHash` | String | Required, Unique, Length 64 | Cryptographic signature of this custody event |
+
+**Indexes:** `custodyId` (unique), compound `(evidenceId, seq: 1)` (unique), `actorUserId`, `toUserId`.
+
+### 7. `counters`
 | Field | Type | Attributes | Description |
 | :--- | :--- | :--- | :--- |
 | `_id` | String | Primary Key | Counter name (e.g. `evidenceId`, `auditSeq`) |
 | `seq` | Number | Default: 0 | Atomic monotonically incrementing integer |
 
-### 7. `systemstatuses`
+### 8. `systemstatuses`
 | Field | Type | Attributes | Description |
 | :--- | :--- | :--- | :--- |
 | `key` | String | Required, Unique | Status key (e.g. `chainValidation`, `auditValidation`) |
@@ -291,6 +320,15 @@ EvidenceGuard/
 | `POST`| `/api/evidence/:id/verify` | Yes | Any | Upload candidate file to verify against registered hash |
 | `GET` | `/api/evidence/:id/verifications` | Yes | Any | Retrieve chronological verification history |
 | `GET` | `/api/evidence/:id/qr` | Yes | Any | Generate PNG/SVG QR code for public verification |
+| `GET` | `/api/evidence/:id/download` | Yes | Any | Download evidence file asset with auto ACCESSED custody logging |
+| `GET` | `/api/evidence/:id/custody` | Yes | ADMIN, INVESTIGATOR | Retrieve chronological custody timeline and current custodian |
+| `POST`| `/api/evidence/:id/custody` | Yes | ADMIN, INVESTIGATOR | Append custody event (transfer, analysis, release, return) |
+| `POST`| `/api/evidence/:id/custody/validate` | Yes | ADMIN, INVESTIGATOR | Execute full cryptographic custody hash-chain validation |
+| `GET` | `/api/custody/mine` | Yes | ADMIN, INVESTIGATOR | Fetch caller's held evidence, incoming and outgoing transfers |
+| `GET` | `/api/custody/officers` | Yes | ADMIN, INVESTIGATOR | Retrieve candidate active officers for custody transfer |
+| `POST`| `/api/custody/:custodyId/accept` | Yes | ADMIN, INVESTIGATOR | Accept pending incoming custody transfer |
+| `POST`| `/api/custody/:custodyId/reject` | Yes | ADMIN, INVESTIGATOR | Reject pending incoming custody transfer with reason |
+| `POST`| `/api/custody/:custodyId/cancel` | Yes | ADMIN, INVESTIGATOR | Cancel initiated pending transfer before recipient acceptance |
 | `GET` | `/api/public/verify/:caseId` | No | Public | Public unauthenticated verification card (strictly whitelisted) |
 | `GET` | `/api/blockchain` | Yes | Any | List sequential ledger blocks (paginated) |
 | `POST`| `/api/blockchain/validate` | Yes | ADMIN | Execute full cryptographic blockchain validation |

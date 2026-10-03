@@ -2599,6 +2599,18 @@ function initEvidenceDetails() {
         }
       }
 
+      const btnDownload = document.getElementById('btnDownloadAsset');
+      if (btnDownload) {
+        btnDownload.style.display = 'inline-flex';
+        btnDownload.onclick = () => {
+          window.location.href = `/api/evidence/${encodeURIComponent(data.evidenceId)}/download`;
+          EG.utils.toast('Downloading evidence file... (Custody ACCESSED event recorded)', 'info');
+          setTimeout(() => {
+            if (typeof loadCustody === 'function') loadCustody(data.evidenceId);
+          }, 1500);
+        };
+      }
+
       const btnGenerateQr = document.getElementById('btnGenerateQr');
       const qrModal = document.getElementById('qrModal');
       const closeQrModalBtn = document.getElementById('closeQrModalBtn');
@@ -2748,6 +2760,9 @@ function initEvidenceDetails() {
       // Fetch verifications
       loadVerifications(data.evidenceId);
 
+      // Sprint 12: Chain of Custody Timeline & Handover Management
+      loadCustody(data.evidenceId);
+
     } catch (err) {
       console.error('[Evidence Details]', err);
       if (loadingEl) loadingEl.style.display = 'none';
@@ -2800,6 +2815,562 @@ function initEvidenceDetails() {
         noVerificationsMsg.textContent = 'Could not load verification history.';
         noVerificationsMsg.style.display = 'block';
       }
+    }
+  };
+
+  // ─── Sprint 12: Chain of Custody Lifecycle & Handover Management ──────────
+  let currentExpectedSeq = 1;
+  let cachedOfficers = [];
+  let pendingCustodyIdForReject = null;
+
+  const loadOfficers = async (selectEl, currentUserId) => {
+    try {
+      if (cachedOfficers.length === 0) {
+        const res = await EG.api.get('/api/custody/officers');
+        cachedOfficers = (res && res.officers) || [];
+      }
+      selectEl.innerHTML = '<option value="">-- Select Officer --</option>';
+      cachedOfficers.forEach(off => {
+        if (currentUserId && String(off._id) === String(currentUserId)) return;
+        const opt = document.createElement('option');
+        opt.value = off._id;
+        opt.textContent = `${off.name} (${off.role})`;
+        selectEl.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('[Load Officers Error]', err);
+      selectEl.innerHTML = '<option value="">Failed to load officers</option>';
+    }
+  };
+
+  // Modal references
+  const transferModal = document.getElementById('transferModal');
+  const logActionModal = document.getElementById('logActionModal');
+  const releaseModal = document.getElementById('releaseModal');
+  const returnModal = document.getElementById('returnModal');
+  const rejectModal = document.getElementById('rejectModal');
+
+  // Modal Close buttons
+  document.getElementById('closeTransferModalBtn')?.addEventListener('click', () => transferModal?.classList.remove('active'));
+  document.getElementById('cancelTransferBtn')?.addEventListener('click', () => transferModal?.classList.remove('active'));
+  document.getElementById('closeLogActionModalBtn')?.addEventListener('click', () => logActionModal?.classList.remove('active'));
+  document.getElementById('cancelLogActionBtn')?.addEventListener('click', () => logActionModal?.classList.remove('active'));
+  document.getElementById('closeReleaseModalBtn')?.addEventListener('click', () => releaseModal?.classList.remove('active'));
+  document.getElementById('cancelReleaseBtn')?.addEventListener('click', () => releaseModal?.classList.remove('active'));
+  document.getElementById('closeReturnModalBtn')?.addEventListener('click', () => returnModal?.classList.remove('active'));
+  document.getElementById('cancelReturnBtn')?.addEventListener('click', () => returnModal?.classList.remove('active'));
+  document.getElementById('closeRejectModalBtn')?.addEventListener('click', () => rejectModal?.classList.remove('active'));
+  document.getElementById('cancelRejectBtn')?.addEventListener('click', () => rejectModal?.classList.remove('active'));
+
+  // Action Button Openers
+  document.getElementById('btnCustodyTransfer')?.addEventListener('click', async () => {
+    const selectEl = document.getElementById('transferRecipientSelect');
+    const currentUserIdStr = user?._id || user?.id;
+    if (selectEl) await loadOfficers(selectEl, currentUserIdStr);
+    const reasonInput = document.getElementById('transferReason');
+    const locInput = document.getElementById('transferLocation');
+    const condInput = document.getElementById('transferCondition');
+    if (reasonInput) reasonInput.value = '';
+    if (locInput) locInput.value = '';
+    if (condInput) condInput.value = '';
+    transferModal?.classList.add('active');
+  });
+
+  document.getElementById('btnCustodyLogAction')?.addEventListener('click', () => {
+    const rEl = document.getElementById('logActionReason');
+    const lEl = document.getElementById('logActionLocation');
+    const cEl = document.getElementById('logActionCondition');
+    if (rEl) rEl.value = '';
+    if (lEl) lEl.value = '';
+    if (cEl) cEl.value = '';
+    logActionModal?.classList.add('active');
+  });
+
+  document.getElementById('btnCustodyRelease')?.addEventListener('click', () => {
+    const nEl = document.getElementById('releasePartyName');
+    const oEl = document.getElementById('releasePartyOrg');
+    const rEl = document.getElementById('releaseReason');
+    const lEl = document.getElementById('releaseLocation');
+    if (nEl) nEl.value = '';
+    if (oEl) oEl.value = '';
+    if (rEl) rEl.value = '';
+    if (lEl) lEl.value = '';
+    releaseModal?.classList.add('active');
+  });
+
+  document.getElementById('btnCustodyReturn')?.addEventListener('click', async () => {
+    const selectEl = document.getElementById('returnOfficerSelect');
+    if (selectEl) await loadOfficers(selectEl);
+    const rEl = document.getElementById('returnReason');
+    const lEl = document.getElementById('returnLocation');
+    if (rEl) rEl.value = '';
+    if (lEl) lEl.value = '';
+    returnModal?.classList.add('active');
+  });
+
+  document.getElementById('btnRefreshCustody')?.addEventListener('click', () => {
+    if (identifier) loadCustody(identifier);
+  });
+
+  // Transfer Form Submit
+  document.getElementById('transferForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const toUserId = document.getElementById('transferRecipientSelect')?.value;
+    const reason = document.getElementById('transferReason')?.value?.trim();
+    const location = document.getElementById('transferLocation')?.value?.trim();
+    const conditionNotes = document.getElementById('transferCondition')?.value?.trim();
+
+    if (!toUserId) {
+      EG.utils.toast('Please select a recipient officer.', 'error');
+      return;
+    }
+    if (!reason || reason.length < 5) {
+      EG.utils.toast('Reason must be at least 5 characters.', 'error');
+      return;
+    }
+
+    const btnSubmit = document.getElementById('submitTransferBtn');
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    try {
+      await EG.api.post(`/api/evidence/${encodeURIComponent(identifier)}/custody`, {
+        type: 'TRANSFER_INITIATED',
+        toUserId,
+        reason,
+        location,
+        conditionNotes,
+        expectedSeq: currentExpectedSeq
+      });
+      EG.utils.toast('Custody transfer successfully initiated! Recipient notified.', 'success');
+      transferModal?.classList.remove('active');
+      loadCustody(identifier);
+    } catch (err) {
+      EG.utils.toast(err.message || 'Failed to initiate custody transfer', 'error');
+    } finally {
+      if (btnSubmit) btnSubmit.disabled = false;
+    }
+  });
+
+  // Log Action Form Submit
+  document.getElementById('logActionForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const type = document.getElementById('logActionTypeSelect')?.value;
+    const reason = document.getElementById('logActionReason')?.value?.trim();
+    const location = document.getElementById('logActionLocation')?.value?.trim();
+    const conditionNotes = document.getElementById('logActionCondition')?.value?.trim();
+
+    if (!reason || reason.length < 5) {
+      EG.utils.toast('Activity summary must be at least 5 characters.', 'error');
+      return;
+    }
+
+    const btnSubmit = document.getElementById('submitLogActionBtn');
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    try {
+      await EG.api.post(`/api/evidence/${encodeURIComponent(identifier)}/custody`, {
+        type,
+        reason,
+        location,
+        conditionNotes,
+        expectedSeq: currentExpectedSeq
+      });
+      EG.utils.toast(`Custody activity [${type}] successfully recorded!`, 'success');
+      logActionModal?.classList.remove('active');
+      loadCustody(identifier);
+    } catch (err) {
+      EG.utils.toast(err.message || 'Failed to record activity', 'error');
+    } finally {
+      if (btnSubmit) btnSubmit.disabled = false;
+    }
+  });
+
+  // Release Form Submit
+  document.getElementById('releaseForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('releasePartyName')?.value?.trim();
+    const organization = document.getElementById('releasePartyOrg')?.value?.trim();
+    const reason = document.getElementById('releaseReason')?.value?.trim();
+    const location = document.getElementById('releaseLocation')?.value?.trim();
+
+    if (!name || !organization) {
+      EG.utils.toast('External party name and organization are required.', 'error');
+      return;
+    }
+    if (!reason || reason.length < 5) {
+      EG.utils.toast('Reason must be at least 5 characters.', 'error');
+      return;
+    }
+
+    const btnSubmit = document.getElementById('submitReleaseBtn');
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    try {
+      await EG.api.post(`/api/evidence/${encodeURIComponent(identifier)}/custody`, {
+        type: 'RELEASED',
+        externalParty: { name, organization },
+        reason,
+        location,
+        expectedSeq: currentExpectedSeq
+      });
+      EG.utils.toast('Evidence released to external custody.', 'info');
+      releaseModal?.classList.remove('active');
+      loadCustody(identifier);
+    } catch (err) {
+      EG.utils.toast(err.message || 'Failed to release evidence', 'error');
+    } finally {
+      if (btnSubmit) btnSubmit.disabled = false;
+    }
+  });
+
+  // Return Form Submit (Admin)
+  document.getElementById('returnForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const toUserId = document.getElementById('returnOfficerSelect')?.value;
+    const reason = document.getElementById('returnReason')?.value?.trim();
+    const location = document.getElementById('returnLocation')?.value?.trim();
+
+    if (!toUserId) {
+      EG.utils.toast('Please select an intake officer.', 'error');
+      return;
+    }
+    if (!reason || reason.length < 5) {
+      EG.utils.toast('Reason must be at least 5 characters.', 'error');
+      return;
+    }
+
+    const btnSubmit = document.getElementById('submitReturnBtn');
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    try {
+      await EG.api.post(`/api/evidence/${encodeURIComponent(identifier)}/custody`, {
+        type: 'RETURNED',
+        toUserId,
+        reason,
+        location,
+        expectedSeq: currentExpectedSeq
+      });
+      EG.utils.toast('Evidence successfully returned to agency custody!', 'success');
+      returnModal?.classList.remove('active');
+      loadCustody(identifier);
+    } catch (err) {
+      EG.utils.toast(err.message || 'Failed to return evidence to custody', 'error');
+    } finally {
+      if (btnSubmit) btnSubmit.disabled = false;
+    }
+  });
+
+  // Reject Form Submit
+  document.getElementById('rejectForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const reason = document.getElementById('rejectReasonInput')?.value?.trim();
+    if (!reason || reason.length < 5) {
+      EG.utils.toast('Please enter a rejection reason (min 5 characters).', 'error');
+      return;
+    }
+    if (!pendingCustodyIdForReject) return;
+
+    const btnSubmit = document.getElementById('submitRejectBtn');
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    try {
+      await EG.api.post(`/api/custody/${encodeURIComponent(pendingCustodyIdForReject)}/reject`, {
+        reason,
+        expectedSeq: currentExpectedSeq
+      });
+      EG.utils.toast('Custody transfer declined.', 'info');
+      rejectModal?.classList.remove('active');
+      pendingCustodyIdForReject = null;
+      loadCustody(identifier);
+    } catch (err) {
+      EG.utils.toast(err.message || 'Failed to reject transfer', 'error');
+    } finally {
+      if (btnSubmit) btnSubmit.disabled = false;
+    }
+  });
+
+  // Validate Custody Chain Button
+  const btnValidateCustody = document.getElementById('btnValidateCustody');
+  if (btnValidateCustody) {
+    btnValidateCustody.onclick = async () => {
+      btnValidateCustody.disabled = true;
+      btnValidateCustody.textContent = 'Verifying Chain...';
+      try {
+        const valRes = await EG.api.post(`/api/evidence/${encodeURIComponent(identifier)}/custody/validate`);
+        const validationBadge = document.getElementById('detCustodyValidationBadge');
+        if (valRes && valRes.valid) {
+          EG.utils.toast(`✅ Custody Chain Cryptographically Valid: ${valRes.totalEvents} events intact, 0 issues.`, 'success');
+          if (validationBadge) {
+            validationBadge.style.display = 'inline-block';
+            validationBadge.style.cssText = 'background: rgba(0, 196, 140, 0.15); color: #00c48c; border: 1px solid #00c48c; font-size: 0.75rem;';
+            validationBadge.textContent = `✔ Chain Valid (${valRes.totalEvents}/${valRes.totalEvents})`;
+          }
+        } else {
+          const issueMsg = (valRes.issues || []).map(i => i.message).join('; ');
+          EG.utils.toast(`⚠️ Tamper Detected in Custody Chain! Issues: ${issueMsg}`, 'error');
+          if (validationBadge) {
+            validationBadge.style.display = 'inline-block';
+            validationBadge.style.cssText = 'background: rgba(255, 76, 76, 0.15); color: #ff4c4c; border: 1px solid #ff4c4c; font-size: 0.75rem;';
+            validationBadge.textContent = '⚠️ Tamper Detected';
+          }
+        }
+      } catch (valErr) {
+        EG.utils.toast(valErr.message || 'Failed to validate custody chain', 'error');
+      } finally {
+        btnValidateCustody.disabled = false;
+        btnValidateCustody.textContent = '🛡 Validate Custody';
+      }
+    };
+  }
+
+  // Master loadCustody implementation
+  const loadCustody = async (evId) => {
+    try {
+      const res = await EG.api.get(`/api/evidence/${encodeURIComponent(evId)}/custody`);
+      if (!res || !res.success) return;
+
+      const banner = document.getElementById('custodyBanner');
+      const timelineCard = document.getElementById('custodyTimelineCard');
+      const statusBadge = document.getElementById('detCustodyStatusBadge');
+      const custodianName = document.getElementById('detCustodianName');
+      const pendingAlert = document.getElementById('custodyPendingAlert');
+      const pendingTitle = document.getElementById('custodyPendingTitle');
+      const pendingDesc = document.getElementById('custodyPendingDesc');
+      const pendingMeta = document.getElementById('custodyPendingMeta');
+      const pendingActions = document.getElementById('custodyPendingActions');
+      const eventsCount = document.getElementById('custodyEventsCount');
+      const timeline = document.getElementById('custodyTimeline');
+      const noCustodyMsg = document.getElementById('noCustodyMsg');
+
+      const btnTransfer = document.getElementById('btnCustodyTransfer');
+      const btnLogAction = document.getElementById('btnCustodyLogAction');
+      const btnRelease = document.getElementById('btnCustodyRelease');
+      const btnReturn = document.getElementById('btnCustodyReturn');
+      const btnValidate = document.getElementById('btnValidateCustody');
+
+      if (banner) banner.style.display = 'flex';
+      if (timelineCard) timelineCard.style.display = 'block';
+      if (btnValidate) btnValidate.style.display = 'inline-flex';
+
+      const events = res.events || [];
+      currentExpectedSeq = events.length + 1;
+
+      // Status Badge
+      if (statusBadge) {
+        statusBadge.className = '';
+        if (res.status === 'IN_CUSTODY') {
+          statusBadge.className = 'custody-badge-incustody';
+          statusBadge.innerHTML = '✔ IN CUSTODY';
+        } else if (res.status === 'PENDING_TRANSFER') {
+          statusBadge.className = 'custody-badge-pending';
+          statusBadge.innerHTML = '⏳ PENDING TRANSFER';
+        } else if (res.status === 'RELEASED') {
+          statusBadge.className = 'custody-badge-released';
+          statusBadge.innerHTML = '🏛️ RELEASED';
+        } else {
+          statusBadge.className = 'badge';
+          statusBadge.textContent = res.status;
+        }
+      }
+
+      // Custodian Label
+      if (custodianName) {
+        if (res.status === 'RELEASED') {
+          const ext = res.externalParty;
+          if (ext && (ext.name || ext.organization)) {
+            custodianName.textContent = `${ext.name || 'External Party'} (${ext.organization || 'External Agency'}) [External]`;
+          } else {
+            custodianName.textContent = 'External Release (Held Externally)';
+          }
+          custodianName.style.color = '#ce93d8';
+        } else if (res.currentCustodian) {
+          custodianName.textContent = res.currentCustodian.name || 'Assigned Officer';
+          custodianName.style.color = 'var(--accent-cyan)';
+        } else {
+          custodianName.textContent = 'None Assigned';
+        }
+      }
+
+      const currentUserIdStr = user?._id ? String(user._id) : (user?.id ? String(user.id) : '');
+      const isAdmin = user?.role === 'ADMIN';
+      const isCustodian = res.currentCustodian && (String(res.currentCustodian.userId) === currentUserIdStr);
+
+      // Buttons visibility
+      if (btnTransfer) {
+        btnTransfer.style.display = (res.status === 'IN_CUSTODY' && (isCustodian || isAdmin)) ? 'inline-flex' : 'none';
+      }
+      if (btnLogAction) {
+        btnLogAction.style.display = (res.status === 'IN_CUSTODY' && (isCustodian || isAdmin)) ? 'inline-flex' : 'none';
+      }
+      if (btnRelease) {
+        btnRelease.style.display = (res.status === 'IN_CUSTODY' && (isCustodian || isAdmin)) ? 'inline-flex' : 'none';
+      }
+      if (btnReturn) {
+        btnReturn.style.display = (res.status === 'RELEASED' && isAdmin) ? 'inline-flex' : 'none';
+      }
+
+      // Pending Transfer Alert
+      if (res.pendingTransfer && !res.pendingTransfer.isExpired) {
+        const pt = res.pendingTransfer;
+        if (pendingAlert) pendingAlert.style.display = 'flex';
+        if (pendingTitle) pendingTitle.textContent = 'Custody Handover Pending';
+        if (pendingDesc) {
+          pendingDesc.innerHTML = `<strong>${escapeHtml(pt.fromUserName)}</strong> initiated a transfer to <strong>${escapeHtml(pt.toUserName)}</strong>.<br><span style="color:var(--text-muted); font-size:0.85rem;">Reason: "${escapeHtml(pt.reason)}"</span>`;
+        }
+        if (pendingMeta && pt.expiresAt) {
+          const diffMs = new Date(pt.expiresAt) - new Date();
+          const hoursLeft = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+          const minsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+          pendingMeta.textContent = `Expires in ${hoursLeft}h ${minsLeft}m (automatic 72h limit)`;
+        }
+
+        if (pendingActions) {
+          pendingActions.innerHTML = '';
+          const isRecipient = String(pt.toUserId) === currentUserIdStr;
+          const isInitiator = String(pt.fromUserId) === currentUserIdStr;
+
+          if (isRecipient || isAdmin) {
+            const btnAccept = document.createElement('button');
+            btnAccept.type = 'button';
+            btnAccept.className = 'btn btn-primary';
+            btnAccept.style.cssText = 'background: #00c48c; border: none; font-size: 0.85rem; padding: 0.4rem 0.85rem;';
+            btnAccept.textContent = '✅ Accept Custody';
+            btnAccept.onclick = async () => {
+              if (!confirm(`Assume legal and physical custody of evidence ${evId}?`)) return;
+              btnAccept.disabled = true;
+              try {
+                await EG.api.post(`/api/custody/${encodeURIComponent(pt.custodyId)}/accept`, {
+                  reason: 'Custody transfer accepted and physical custody assumed',
+                  expectedSeq: currentExpectedSeq
+                });
+                EG.utils.toast('Custody successfully assumed!', 'success');
+                loadCustody(evId);
+              } catch (aErr) {
+                EG.utils.toast(aErr.message || 'Failed to accept custody', 'error');
+                btnAccept.disabled = false;
+              }
+            };
+            pendingActions.appendChild(btnAccept);
+
+            const btnReject = document.createElement('button');
+            btnReject.type = 'button';
+            btnReject.className = 'btn btn-secondary';
+            btnReject.style.cssText = 'border-color: #ff4c4c; color: #ff4c4c; font-size: 0.85rem; padding: 0.4rem 0.85rem;';
+            btnReject.textContent = '⛔ Decline';
+            btnReject.onclick = () => {
+              pendingCustodyIdForReject = pt.custodyId;
+              const rInp = document.getElementById('rejectReasonInput');
+              if (rInp) rInp.value = '';
+              rejectModal?.classList.add('active');
+            };
+            pendingActions.appendChild(btnReject);
+          }
+
+          if (isInitiator || isAdmin) {
+            const btnCancel = document.createElement('button');
+            btnCancel.type = 'button';
+            btnCancel.className = 'btn btn-secondary';
+            btnCancel.style.cssText = 'font-size: 0.85rem; padding: 0.4rem 0.85rem;';
+            btnCancel.textContent = '🚫 Cancel Transfer';
+            btnCancel.onclick = async () => {
+              if (!confirm('Cancel this pending custody transfer?')) return;
+              btnCancel.disabled = true;
+              try {
+                await EG.api.post(`/api/custody/${encodeURIComponent(pt.custodyId)}/cancel`, {
+                  reason: 'Custody transfer cancelled by officer',
+                  expectedSeq: currentExpectedSeq
+                });
+                EG.utils.toast('Custody transfer cancelled', 'info');
+                loadCustody(evId);
+              } catch (cErr) {
+                EG.utils.toast(cErr.message || 'Failed to cancel transfer', 'error');
+                btnCancel.disabled = false;
+              }
+            };
+            pendingActions.appendChild(btnCancel);
+          }
+        }
+      } else {
+        if (pendingAlert) pendingAlert.style.display = 'none';
+      }
+
+      // Render Timeline
+      if (eventsCount) eventsCount.textContent = `${events.length} event(s)`;
+      if (events.length === 0) {
+        if (timeline) timeline.innerHTML = '';
+        if (noCustodyMsg) noCustodyMsg.style.display = 'block';
+        return;
+      }
+      if (noCustodyMsg) noCustodyMsg.style.display = 'none';
+
+      if (timeline) {
+        timeline.innerHTML = events.map(evt => {
+          const seq = evt.seq;
+          const type = evt.type;
+          const actor = escapeHtml(evt.actorName || 'Officer');
+          const toUser = evt.toUserName ? ` → <strong>${escapeHtml(evt.toUserName)}</strong>` : '';
+          const extParty = (evt.externalParty && evt.externalParty.name)
+            ? ` → 🏛️ <strong>${escapeHtml(evt.externalParty.name)} (${escapeHtml(evt.externalParty.organization || '')})</strong>`
+            : '';
+          const dateStr = EG.utils.formatDate(evt.occurredAt);
+          const reason = escapeHtml(evt.reason);
+          const loc = evt.location ? `📍 ${escapeHtml(evt.location)}` : '';
+          const notes = evt.conditionNotes ? `📝 ${escapeHtml(evt.conditionNotes)}` : '';
+          const hashShort = evt.entryHash ? evt.entryHash.slice(0, 16) + '...' + evt.entryHash.slice(-8) : '';
+          const autoBadge = evt.auto ? '<span class="badge" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:1px solid #3b82f6; font-size:0.7rem; padding:1px 5px; margin-left:6px;">AUTO</span>' : '';
+
+          let typeIcon = '📋';
+          if (type === 'COLLECTED') typeIcon = '📥';
+          else if (type === 'TRANSFER_INITIATED') typeIcon = '⏳';
+          else if (type === 'TRANSFER_ACCEPTED') typeIcon = '🤝';
+          else if (type === 'TRANSFER_REJECTED') typeIcon = '⛔';
+          else if (type === 'TRANSFER_CANCELLED') typeIcon = '🚫';
+          else if (type === 'ACCESSED') typeIcon = '👁️';
+          else if (type === 'ANALYZED') typeIcon = '🔬';
+          else if (type === 'STORED') typeIcon = '🗄️';
+          else if (type === 'RELEASED') typeIcon = '🏛️';
+          else if (type === 'RETURNED') typeIcon = '↩️';
+
+          return `
+            <div class="custody-step">
+              <div class="custody-node">${seq}</div>
+              <div class="custody-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="custody-type-badge type-${type}">${typeIcon} ${type}</span>
+                    ${autoBadge}
+                  </div>
+                  <div style="font-size:0.82rem; color:var(--text-muted);">${dateStr}</div>
+                </div>
+
+                <div style="font-size:0.95rem; margin-bottom:6px;">
+                  <span>Officer: <strong>${actor}</strong></span>${toUser}${extParty}
+                </div>
+
+                <div style="color:var(--text-main); font-size:0.9rem; margin-bottom:8px; line-height:1.4;">
+                  ${reason}
+                </div>
+
+                ${(loc || notes) ? `
+                  <div style="display:flex; gap:14px; font-size:0.82rem; color:var(--text-muted); flex-wrap:wrap; margin-bottom:8px;">
+                    ${loc ? `<span>${loc}</span>` : ''}
+                    ${notes ? `<span>${notes}</span>` : ''}
+                  </div>
+                ` : ''}
+
+                <div class="custody-hash-display">
+                  <span style="color:var(--text-muted);">SHA-256 Seal:</span>
+                  <span style="color:var(--accent-cyan); word-break:break-all; flex:1;" title="${evt.entryHash}">${hashShort}</span>
+                  <button type="button" class="btn-copy-sm" onclick="navigator.clipboard.writeText('${evt.entryHash}').then(() => EG.utils.toast('Custody hash copied', 'info'))">Copy</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+    } catch (cErr) {
+      console.warn('[Custody Not Available / Disabled]', cErr.message);
     }
   };
 
@@ -3320,12 +3891,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // â”€â”€ Hide role-gated sidebar links â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (user) {
-    if (!EG.auth.isAdmin())       document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
-    if (!EG.auth.canViewAudit())  document.querySelectorAll('.audit-only').forEach(el => el.style.display = 'none');
+    if (!EG.auth.isAdmin())        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+    if (!EG.auth.canViewAudit())   document.querySelectorAll('.audit-only').forEach(el => el.style.display = 'none');
+    if (!EG.auth.isInvestigator()) document.querySelectorAll('.investigator-only').forEach(el => el.style.display = 'none');
     if (!EG.auth.canManageUsers()) document.querySelectorAll('.users-only').forEach(el => el.style.display = 'none');
   }
 
-  // â”€â”€ Page router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Page router ─────────────────────────────────────────────────────────────
   if      (currentPage === 'login.html')            initLogin();
   else if (currentPage === 'register.html')         initRegister();
   else if (currentPage === 'dashboard.html')        initDashboard();
@@ -3335,6 +3907,7 @@ document.addEventListener('DOMContentLoaded', () => {
   else if (currentPage === 'verify.html')           initVerify();
   else if (currentPage === 'blockchain.html')       initBlockchain();
   else if (currentPage === 'audit.html')            initAudit();
+  else if (currentPage === 'custody.html')          initCustody();
   else if (currentPage === 'users.html')            initUsers();
   else if (currentPage === 'index.html' || currentPage === '') initIndex();
 });
@@ -3396,4 +3969,302 @@ async function initIndex() {
       }
     }
   } catch (_) {}
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// SPRINT 12: CHAIN OF CUSTODY HUB PAGE (custody.html)
+// ──────────────────────────────────────────────────────────────────────────
+async function initCustody() {
+  EG.auth.requireAuth('login.html');
+  const user = EG.auth.getUser();
+
+  if (user && user.role === 'VIEWER') {
+    EG.utils.toast('Access Denied: Chain of Custody ledger is restricted to Investigators and Admins.', 'error');
+    window.location.href = 'dashboard.html';
+    return;
+  }
+
+  const hubCountHeld = document.getElementById('hubCountHeld');
+  const hubCountIncoming = document.getElementById('hubCountIncoming');
+  const hubCountOutgoing = document.getElementById('hubCountOutgoing');
+  const pillHeld = document.getElementById('pillHeld');
+  const pillIncoming = document.getElementById('pillIncoming');
+  const pillOutgoing = document.getElementById('pillOutgoing');
+  const hubIncomingAlert = document.getElementById('hubIncomingAlert');
+  const cardPendingIncoming = document.getElementById('cardPendingIncoming');
+
+  const tabBtnHeld = document.getElementById('tabBtnHeld');
+  const tabBtnIncoming = document.getElementById('tabBtnIncoming');
+  const tabBtnOutgoing = document.getElementById('tabBtnOutgoing');
+  const tabHeld = document.getElementById('tabHeld');
+  const tabIncoming = document.getElementById('tabIncoming');
+  const tabOutgoing = document.getElementById('tabOutgoing');
+
+  const tbodyHeld = document.getElementById('tbodyHeld');
+  const tbodyIncoming = document.getElementById('tbodyIncoming');
+  const tbodyOutgoing = document.getElementById('tbodyOutgoing');
+  const emptyHeldMsg = document.getElementById('emptyHeldMsg');
+  const emptyIncomingMsg = document.getElementById('emptyIncomingMsg');
+  const emptyOutgoingMsg = document.getElementById('emptyOutgoingMsg');
+
+  // Tab Switching
+  const switchTab = (tabName) => {
+    [tabBtnHeld, tabBtnIncoming, tabBtnOutgoing].forEach(btn => btn?.classList.remove('active'));
+    [tabHeld, tabIncoming, tabOutgoing].forEach(panel => {
+      if (panel) panel.style.display = 'none';
+    });
+
+    if (tabName === 'incoming') {
+      tabBtnIncoming?.classList.add('active');
+      if (tabIncoming) tabIncoming.style.display = 'block';
+    } else if (tabName === 'outgoing') {
+      tabBtnOutgoing?.classList.add('active');
+      if (tabOutgoing) tabOutgoing.style.display = 'block';
+    } else {
+      tabBtnHeld?.classList.add('active');
+      if (tabHeld) tabHeld.style.display = 'block';
+    }
+  };
+
+  tabBtnHeld?.addEventListener('click', () => switchTab('held'));
+  tabBtnIncoming?.addEventListener('click', () => switchTab('incoming'));
+  tabBtnOutgoing?.addEventListener('click', () => switchTab('outgoing'));
+  document.getElementById('btnGoToIncomingTab')?.addEventListener('click', () => switchTab('incoming'));
+  document.getElementById('btnRefreshCustodyHub')?.addEventListener('click', () => loadHubData());
+
+  let activeRejectCustodyId = null;
+  const hubRejectModal = document.getElementById('hubRejectModal');
+  const closeHubRejectModalBtn = document.getElementById('closeHubRejectModalBtn');
+  const cancelHubRejectBtn = document.getElementById('cancelHubRejectBtn');
+  const hubRejectForm = document.getElementById('hubRejectForm');
+  const hubRejectReasonInput = document.getElementById('hubRejectReasonInput');
+
+  const openRejectModal = (custodyId) => {
+    activeRejectCustodyId = custodyId;
+    if (hubRejectReasonInput) hubRejectReasonInput.value = '';
+    hubRejectModal?.classList.add('active');
+  };
+
+  const closeRejectModal = () => {
+    activeRejectCustodyId = null;
+    hubRejectModal?.classList.remove('active');
+  };
+
+  closeHubRejectModalBtn?.addEventListener('click', closeRejectModal);
+  cancelHubRejectBtn?.addEventListener('click', closeRejectModal);
+
+  hubRejectForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const reason = hubRejectReasonInput?.value?.trim();
+    if (!reason || reason.length < 5) {
+      EG.utils.toast('Please provide a reason of at least 5 characters.', 'error');
+      return;
+    }
+    try {
+      await EG.api.post(`/api/custody/${encodeURIComponent(activeRejectCustodyId)}/reject`, { reason });
+      EG.utils.toast('Custody handover declined.', 'info');
+      closeRejectModal();
+      loadHubData();
+    } catch (err) {
+      EG.utils.toast(err.message || 'Failed to reject transfer', 'error');
+    }
+  });
+
+  const loadHubData = async () => {
+    try {
+      const res = await EG.api.get('/api/custody/mine');
+      if (!res || !res.success) return;
+
+      const itemsInCustody = res.itemsInCustody || [];
+      const pendingIncoming = res.pendingIncoming || [];
+      const pendingOutgoing = res.pendingOutgoing || [];
+
+      // Update counters
+      const heldCount = itemsInCustody.length;
+      const inCount = pendingIncoming.length;
+      const outCount = pendingOutgoing.length;
+
+      if (hubCountHeld) hubCountHeld.textContent = heldCount;
+      if (hubCountIncoming) hubCountIncoming.textContent = inCount;
+      if (hubCountOutgoing) hubCountOutgoing.textContent = outCount;
+      if (pillHeld) pillHeld.textContent = heldCount;
+      if (pillIncoming) pillIncoming.textContent = inCount;
+      if (pillOutgoing) pillOutgoing.textContent = outCount;
+
+      // Pulse incoming card if action required
+      if (inCount > 0) {
+        if (hubIncomingAlert) hubIncomingAlert.style.display = 'flex';
+        cardPendingIncoming?.classList.add('pulse-glow');
+      } else {
+        if (hubIncomingAlert) hubIncomingAlert.style.display = 'none';
+        cardPendingIncoming?.classList.remove('pulse-glow');
+      }
+
+      // 1. Render Held Table
+      if (itemsInCustody.length === 0) {
+        if (tbodyHeld) tbodyHeld.innerHTML = '';
+        if (emptyHeldMsg) emptyHeldMsg.style.display = 'block';
+      } else {
+        if (emptyHeldMsg) emptyHeldMsg.style.display = 'none';
+        if (tbodyHeld) {
+          tbodyHeld.innerHTML = itemsInCustody.map(item => {
+            const ev = item.evidence || {};
+            const evId = escapeHtml(ev.evidenceId || 'EV-????');
+            const caseId = escapeHtml(ev.caseId || 'EG-????');
+            const name = escapeHtml(ev.name || 'Untitled');
+            const status = escapeHtml(item.status || 'IN_CUSTODY');
+            const total = item.totalEvents || 1;
+            const lastType = item.lastEvent ? escapeHtml(item.lastEvent.type) : 'COLLECTED';
+            const lastTime = item.lastEvent ? EG.utils.formatDate(item.lastEvent.occurredAt) : 'N/A';
+
+            return `
+              <tr>
+                <td style="font-family: monospace; font-weight: 700; color: var(--accent-cyan);">${evId}</td>
+                <td style="font-family: monospace;">${caseId}</td>
+                <td style="font-weight: 600;">${name}</td>
+                <td><span class="custody-badge-incustody">✔ ${status}</span></td>
+                <td><span class="badge" style="background:rgba(0,212,255,0.15); color:var(--accent-cyan);">${total} events</span></td>
+                <td style="font-size: 0.85rem; color: var(--text-muted);">${lastType} (${lastTime})</td>
+                <td>
+                  <a href="evidence-details.html?id=${encodeURIComponent(ev.evidenceId)}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.82rem;">View & Transfer →</a>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+      }
+
+      // 2. Render Incoming Transfers Table
+      if (pendingIncoming.length === 0) {
+        if (tbodyIncoming) tbodyIncoming.innerHTML = '';
+        if (emptyIncomingMsg) emptyIncomingMsg.style.display = 'block';
+      } else {
+        if (emptyIncomingMsg) emptyIncomingMsg.style.display = 'none';
+        if (tbodyIncoming) {
+          tbodyIncoming.innerHTML = pendingIncoming.map(item => {
+            const ev = item.evidence || {};
+            const tr = item.transfer || {};
+            const evId = escapeHtml(ev.evidenceId || tr.evidenceId || 'EV-????');
+            const fromUser = escapeHtml(tr.fromUserName || 'Officer');
+            const reason = escapeHtml(tr.reason || '');
+
+            let expireText = '72h limit';
+            if (tr.expiresAt) {
+              const diffMs = new Date(tr.expiresAt) - new Date();
+              const h = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+              const m = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+              expireText = `${h}h ${m}m remaining`;
+            }
+
+            return `
+              <tr>
+                <td style="font-family: monospace; font-weight: 700; color: var(--accent-cyan);">
+                  <a href="evidence-details.html?id=${encodeURIComponent(evId)}" style="color:var(--accent-cyan);">${evId}</a>
+                </td>
+                <td><strong>${fromUser}</strong></td>
+                <td style="font-size: 0.9rem;">${reason}</td>
+                <td style="color: #ffb74d; font-size: 0.85rem; font-weight: 600;">⏳ ${expireText}</td>
+                <td>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" class="btn btn-primary btn-accept-hub" data-id="${tr.custodyId}" data-ev="${evId}" style="padding: 4px 10px; font-size: 0.82rem; background: #00c48c;">Accept</button>
+                    <button type="button" class="btn btn-secondary btn-reject-hub" data-id="${tr.custodyId}" style="padding: 4px 10px; font-size: 0.82rem; border-color: #ff4c4c; color: #ff4c4c;">Decline</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('');
+
+          // Wire Accept and Decline buttons
+          tbodyIncoming.querySelectorAll('.btn-accept-hub').forEach(btn => {
+            btn.onclick = async () => {
+              const cId = btn.getAttribute('data-id');
+              const ev = btn.getAttribute('data-ev');
+              if (!confirm(`Accept legal custody of evidence ${ev}?`)) return;
+              btn.disabled = true;
+              try {
+                await EG.api.post(`/api/custody/${encodeURIComponent(cId)}/accept`, {
+                  reason: 'Custody transfer accepted and physical custody assumed'
+                });
+                EG.utils.toast('Custody successfully assumed!', 'success');
+                loadHubData();
+              } catch (err) {
+                EG.utils.toast(err.message || 'Failed to accept', 'error');
+                btn.disabled = false;
+              }
+            };
+          });
+
+          tbodyIncoming.querySelectorAll('.btn-reject-hub').forEach(btn => {
+            btn.onclick = () => {
+              const cId = btn.getAttribute('data-id');
+              openRejectModal(cId);
+            };
+          });
+        }
+      }
+
+      // 3. Render Outgoing Transfers Table
+      if (pendingOutgoing.length === 0) {
+        if (tbodyOutgoing) tbodyOutgoing.innerHTML = '';
+        if (emptyOutgoingMsg) emptyOutgoingMsg.style.display = 'block';
+      } else {
+        if (emptyOutgoingMsg) emptyOutgoingMsg.style.display = 'none';
+        if (tbodyOutgoing) {
+          tbodyOutgoing.innerHTML = pendingOutgoing.map(item => {
+            const ev = item.evidence || {};
+            const tr = item.transfer || {};
+            const evId = escapeHtml(ev.evidenceId || tr.evidenceId || 'EV-????');
+            const toUser = escapeHtml(tr.toUserName || 'Officer');
+            const reason = escapeHtml(tr.reason || '');
+
+            let expireText = '72h limit';
+            if (tr.expiresAt) {
+              const diffMs = new Date(tr.expiresAt) - new Date();
+              const h = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+              const m = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+              expireText = `${h}h ${m}m remaining`;
+            }
+
+            return `
+              <tr>
+                <td style="font-family: monospace; font-weight: 700; color: var(--accent-cyan);">
+                  <a href="evidence-details.html?id=${encodeURIComponent(evId)}" style="color:var(--accent-cyan);">${evId}</a>
+                </td>
+                <td><strong>${toUser}</strong></td>
+                <td style="font-size: 0.9rem;">${reason}</td>
+                <td style="color: var(--text-muted); font-size: 0.85rem;">⏳ ${expireText}</td>
+                <td>
+                  <button type="button" class="btn btn-secondary btn-cancel-hub" data-id="${tr.custodyId}" style="padding: 4px 10px; font-size: 0.82rem;">Cancel Handover</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+
+          tbodyOutgoing.querySelectorAll('.btn-cancel-hub').forEach(btn => {
+            btn.onclick = async () => {
+              const cId = btn.getAttribute('data-id');
+              if (!confirm('Cancel this pending custody transfer?')) return;
+              btn.disabled = true;
+              try {
+                await EG.api.post(`/api/custody/${encodeURIComponent(cId)}/cancel`, {
+                  reason: 'Custody transfer cancelled by initiator'
+                });
+                EG.utils.toast('Custody transfer cancelled', 'info');
+                loadHubData();
+              } catch (err) {
+                EG.utils.toast(err.message || 'Failed to cancel', 'error');
+                btn.disabled = false;
+              }
+            };
+          });
+        }
+      }
+
+    } catch (err) {
+      console.error('[Custody Hub Error]', err);
+      EG.utils.toast('Failed to load custody records', 'error');
+    }
+  };
+
+  loadHubData();
 }

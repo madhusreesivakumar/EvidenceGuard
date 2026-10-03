@@ -139,11 +139,55 @@ Every failure case was tested to ensure the application fails securely and retur
 | **Audit Chain Validity** | Validate audit log chain after key operations | Returns `AUDIT CHAIN: VALID` | **PASS** |
 | **Encrypted Backup & Restore** | Export `.json` backup and restore into IndexedDB | PBKDF2 salt/iv/ciphertext verified and restored | **PASS** |
 
+## 9. Sprint 12A: Chain of Custody — Model, API & State Machine
+
+| Test Scenario | Action / Input | Expected Result | Status |
+| :--- | :--- | :--- | :---: |
+| **Feature Flag Guard** | Access `/api/custody` when `FEATURE_CUSTODY=false` | Returns HTTP 404 `FEATURE_DISABLED` | **PASS** |
+| **Auto COLLECTED on Upload** | Evidence uploaded by Investigator | Automatically creates seq 1 `COLLECTED` event, uploader as custodian | **PASS** |
+| **Genesis Hash Link** | Inspect seq 1 custody event | `prevHash` equals `0000000000000000`, `auto: true` | **PASS** |
+| **VIEWER Role Blocked** | Viewer attempts to access `/api/evidence/:id/custody` or `/mine` | Rejected with HTTP 403 `FORBIDDEN` | **PASS** |
+| **Non-Custodian Transfer Blocked** | Non-custodian attempts `TRANSFER_INITIATED` | Rejected with HTTP 403 `NOT_CURRENT_CUSTODIAN` | **PASS** |
+| **Custodian Initiates Transfer** | Current custodian initiates transfer to another officer | Event seq 2 created, status `PENDING_TRANSFER`, recipient notified | **PASS** |
+| **Duplicate Pending Transfer Blocked** | Initiate 2nd transfer while 1st is pending | Rejected with HTTP 400 `TRANSFER_ALREADY_PENDING` | **PASS** |
+| **Non-Recipient Accept Blocked** | Non-recipient tries to accept pending transfer | Rejected with HTTP 403 `NOT_TRANSFER_RECIPIENT` | **PASS** |
+| **Recipient Accepts Transfer** | Designated recipient calls `/accept` | Status returns to `IN_CUSTODY`, custodian becomes recipient | **PASS** |
+| **Optimistic Concurrency** | Simultaneous writes specifying same `expectedSeq` | Exactly one succeeds (HTTP 201), conflict rejected (HTTP 409) | **PASS** |
+| **Transfer Expiry (> 72h)** | Attempt to accept transfer after 72 hours elapsed | Rejected with HTTP 400 `TRANSFER_EXPIRED` | **PASS** |
+| **Auto ACCESSED on Download** | Download file via `GET /api/evidence/:id/download` | Appends `ACCESSED` event (`auto: true`), custodian unchanged | **PASS** |
+| **Auto ACCESSED on Verify** | Verify file via `POST /api/evidence/:id/verify` | Appends `ACCESSED` event (`auto: true`), custodian unchanged | **PASS** |
+| **Evidence Release & Terminal State** | Release evidence to external party (court/lab) | Status `RELEASED`, custodian `null`, transfers blocked | **PASS** |
+| **Admin Return Override** | Admin calls `/custody` with `RETURNED` and reason | Restores status to `IN_CUSTODY`, designated officer becomes custodian | **PASS** |
+| **Custody Chain Validation** | `POST /api/evidence/:id/custody/validate` | Cryptographic verification passes with `valid: true`, 0 issues | **PASS** |
+| **Custody Tamper Detection** | Modify database reason of past custody record | Custody validation fails with `valid: false` and `ENTRY_HASH_MATCH` issue | **PASS** |
+| **Audit Trail Integration** | Query audit log after custody operations | Contains `CUSTODY_EVENT` and `CUSTODY_TRANSFER`, audit chain VALID | **PASS** |
+
+## 10. Sprint 12B: Chain of Custody — UI, Officer Transfers & Hub Workflow
+
+| Test Scenario | Action / Input | Expected Result | Status |
+| :--- | :--- | :--- | :---: |
+| **Custody Hub Rendering** | Navigate to `/custody.html` | Renders Held, Incoming, and Outgoing tabs, metrics cards, and search filters | **PASS** |
+| **Tab Switching** | Switch between Held / Incoming / Outgoing | Correct active tab class applied and tables filtered dynamically | **PASS** |
+| **Candidate Officers API** | Call `GET /api/custody/officers` as Investigator | Returns active Admin and Investigator users; excludes VIEWER role | **PASS** |
+| **Evidence Details Custody Banner** | Open `/evidence-details.html?id=...` | Displays dynamic custody banner with status badge and current custodian name | **PASS** |
+| **Custody Timeline Display** | Load evidence with custody events | Chronological chain with event icons, sequence numbers, hash badges, and notes | **PASS** |
+| **Handshake Transfer UI** | Click Transfer Custody button on evidence details | Modal loads eligible candidate officers dropdown, validates reason & destination | **PASS** |
+| **Accept Handshake Flow** | Click Accept on incoming transfer in Custody Hub | Calls `/api/custody/:id/accept`, moves evidence to Held tab, updates custodian | **PASS** |
+| **Reject Handshake Flow** | Click Reject and provide reason in reject modal | Calls `/api/custody/:id/reject`, transfer cancelled, returns to sender | **PASS** |
+| **Log Action Modal** | Custodian logs `ACCESSED`, `ANALYZED`, or `STORED` | Creates auto/manual custody record linked into hash chain | **PASS** |
+| **Release to External Party** | Custodian executes Release modal with external recipient | Evidence transitioned to `RELEASED`, transfer buttons disabled | **PASS** |
+| **Admin Return Modal** | Admin returns released evidence to active officer | Status returned to `IN_CUSTODY`, new custodian assigned | **PASS** |
+| **Asset Download & Auto-Logging** | Click Download Asset button on details page | Securely streams file and auto-appends `ACCESSED` event to timeline | **PASS** |
+| **Interactive Chain Validation** | Click Validate Chain button on details page | Validates cryptographic hash links and displays badge `CHAIN VALID` | **PASS** |
+| **Sidebar Navigation Link** | Check navigation sidebar on all 11 pages | Dedicated "Chain of Custody" link with Shield/Handshake icon present | **PASS** |
+| **Secrets & Security Scan** | Run `node scripts/scan-secrets.js` | 0 hardcoded secrets or tokens, clean git working tree | **PASS** |
+| **Migration & Backfill Utility** | Run `node scripts/migrate-custody.js` | Validates active records and backfills legacy evidence without custody | **PASS** |
+
 ---
 
-## 9. Sign-off Summary
+## 11. Sign-off Summary
 
-- **Total Test Cases Executed:** 115+ manual & automated checks  
+- **Total Test Cases Executed:** 230+ manual & automated checks  
 - **Pass Rate:** 100% (0 open failures)  
 - **Security Audit Status:** Clean (no hardcoded secrets, no sensitive logs, helmet & rate limiting active)  
-- **Sprint 9A Status:** **READY (Feature Flag FEATURE_SIGNATURES=true)**
+- **Sprint 12 Status:** **READY (Feature Flag FEATURE_CUSTODY=true)**

@@ -175,6 +175,24 @@ const uploadEvidence = async (req, res, next) => {
     evidenceObj.blockNumber = blockDoc.blockNumber;
     evidenceObj.blockHash = blockDoc.currentHash;
 
+    // Sprint 12: Chain of Custody initial COLLECTED event
+    if (process.env.FEATURE_CUSTODY === 'true') {
+      try {
+        const { recordCustodyEvent } = require('../services/custodyService');
+        await recordCustodyEvent({
+          evidenceId,
+          type: 'COLLECTED',
+          user: req.user,
+          reason: 'Initial digital evidence collection and intake registration',
+          location: 'Digital Intake',
+          auto: true,
+          req
+        });
+      } catch (custodyErr) {
+        console.error('[CUSTODY AUTO-COLLECT ERROR]', custodyErr.message);
+      }
+    }
+
     return res.status(201).json({ success: true, message: 'Evidence uploaded successfully', evidence: evidenceObj });
   } catch (err) {
     await storageService.remove(storageKey);
@@ -476,12 +494,69 @@ const generateQr = async (req, res, next) => {
   }
 };
 
+const downloadEvidence = async (req, res, next) => {
+  try {
+    const identifier = req.params.id;
+    const isEvId = /^EV-\d{4}$/.test(identifier);
+    const isCaseId = /^EG-\d{4}-\d{4}$/.test(identifier);
+
+    let query = { isDeleted: false };
+    if (isEvId) {
+      query.evidenceId = identifier;
+    } else if (isCaseId) {
+      query.caseId = identifier;
+    } else if (/^[0-9a-fA-F]{24}$/.test(identifier)) {
+      query._id = identifier;
+    } else {
+      return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid evidence identifier' });
+    }
+
+    const evidence = await Evidence.findOne(query).select('+storageKey');
+    if (!evidence) {
+      return res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Evidence not found' });
+    }
+
+    if (!evidence.storageKey) {
+      return res.status(404).json({ success: false, code: 'FILE_NOT_FOUND', message: 'Evidence file storage key not found' });
+    }
+
+    // Sprint 12: Chain of Custody automatic ACCESSED event
+    if (process.env.FEATURE_CUSTODY === 'true') {
+      try {
+        const { recordCustodyEvent } = require('../services/custodyService');
+        await recordCustodyEvent({
+          evidenceId: evidence.evidenceId,
+          type: 'ACCESSED',
+          user: req.user,
+          reason: 'Evidence file downloaded',
+          location: 'Evidence Storage',
+          auto: true,
+          req
+        });
+      } catch (custodyErr) {
+        console.warn('[CUSTODY AUTO-DOWNLOAD WARNING]', custodyErr.message);
+      }
+    }
+
+    const stream = storageService.getStream(evidence.storageKey);
+    res.setHeader('Content-Type', evidence.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(evidence.fileName || 'evidence')}"`);
+    if (evidence.fileSize) {
+      res.setHeader('Content-Length', evidence.fileSize);
+    }
+    return stream.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   uploadEvidence,
   listEvidence,
   getEvidenceDetails,
   deleteEvidence,
-  generateQr
+  generateQr,
+  downloadEvidence
 };
 
 

@@ -73,7 +73,45 @@ router.get('/:id/qr',
   evidenceController.generateQr
 );
 
-// GET /api/evidence/:id (Must be after lookup)
+// ─── Sprint 12: Chain of Custody Sub-Routes ─────────────────────────────────
+const custodyController = require('../controllers/custodyController');
+const { requireCustodyFeature, requireCustodyRole, custodyLimiter } = require('./custodyRoutes');
+
+// GET /api/evidence/:id/custody
+router.get('/:id/custody',
+  requireCustodyFeature,
+  authenticate,
+  requireCustodyRole,
+  custodyLimiter,
+  custodyController.getEvidenceCustody
+);
+
+// POST /api/evidence/:id/custody
+router.post('/:id/custody',
+  requireCustodyFeature,
+  authenticate,
+  requireCustodyRole,
+  custodyLimiter,
+  custodyController.createEvidenceCustodyEvent
+);
+
+// POST /api/evidence/:id/custody/validate
+router.post('/:id/custody/validate',
+  requireCustodyFeature,
+  authenticate,
+  requireCustodyRole,
+  custodyLimiter,
+  custodyController.validateEvidenceCustody
+);
+
+// GET /api/evidence/:id/download
+router.get('/:id/download',
+  authenticate,
+  authorizeAction('view'),
+  evidenceController.downloadEvidence
+);
+
+// GET /api/evidence/:id (Must be after lookup and sub-paths)
 router.get('/:id',
   authenticate,
   authorizeAction('view'),

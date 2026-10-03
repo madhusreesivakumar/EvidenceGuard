@@ -161,6 +161,28 @@ If the panel asks: *"How do we know the blockchain validation actually works whe
 
 ---
 
+## Sprint 12 Demo Segment: Cryptographic Chain of Custody & Officer Handshake (2 Minutes)
+
+- **Visual:** Navigate to `http://localhost:3000/custody.html` (Chain of Custody in sidebar) and `evidence-details.html`.
+- **Spoken Script:**
+  > *"In Sprint 12, we introduced a tamper-evident, cryptographically linked Chain of Custody tracking every physical and digital movement of evidence from intake to court.
+  > 
+  > Every piece of evidence has an independent custody chain where each event includes sequence number, actor ID, action type, location, condition notes, and an entry hash linked to the previous event's hash.
+  > 
+  > Notice the two-phase handshake workflow: an officer cannot simply push custody onto a colleague; the recipient must explicitly review and accept or reject custody, preventing unaccounted handovers."*
+- **Action:**
+  1. Open `/custody.html` to display the **Custody Hub** with **Held**, **Incoming**, and **Outgoing** tabs and real-time counter metrics.
+  2. Click on an evidence item to open `/evidence-details.html?id=...`.
+  3. Point out the **Custody Status Banner** showing the current custodian and custody status (`IN_CUSTODY`).
+  4. Point out the **Custody Timeline** rendering each verified step (`COLLECTED`, `ACCESSED`, `ANALYZED`) with timestamp, officer name, and linked hash badge.
+  5. Click **"Transfer Custody"**, select a recipient officer from the dynamic dropdown (which fetches active Investigators/Admins and excludes Viewers), add reason (`"Forwarded to Forensics for deep scan"`), and click **"Initiate Transfer"**.
+  6. The status transitions to `PENDING_TRANSFER`.
+  7. Log in as the receiving officer (or view the Custody Hub), navigate to the **Incoming Transfers** tab, click **"Accept Transfer"**, and confirm.
+  8. Custody transitions smoothly back to `IN_CUSTODY` with the recipient recorded as the active custodian and the cryptographic link sealed into the timeline.
+  9. Click **"Validate Custody Chain"** to demonstrate client-side and server-side verification: the green badge confirms `CHAIN VALID` across all sequential links.
+
+---
+
 ## Contingency & Backup Plans
 
 | Step | Risk / What If | Backup Procedure |

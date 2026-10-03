@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chain of Custody - EvidenceGuard</title>
+  <meta name="description" content="Forensic Chain of Custody ledger, evidence handovers, incoming transfer acceptance, and cryptographic tracking.">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="page-logic.js" defer></script>
+</head>
+<body data-page="custody">
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar Navigation">
+      <div class="sidebar-header">
+        <div class="logo-icon" aria-hidden="true">🔐</div> EvidenceGuard
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📊</span> Dashboard</a>
+        <a href="upload.html" class="nav-item investigator-only"><span class="nav-icon" aria-hidden="true">⬆</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon" aria-hidden="true">🗂</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon" aria-hidden="true">✅</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item audit-only"><span class="nav-icon" aria-hidden="true">⛓</span> Blockchain</a>
+        <a href="audit.html" class="nav-item audit-only"><span class="nav-icon" aria-hidden="true">📋</span> Audit Trail</a>
+        <a href="custody.html" class="nav-item active investigator-only"><span class="nav-icon" aria-hidden="true">🤝</span> Custody Ledger</a>
+        <a href="keys.html" class="nav-item"><span class="nav-icon" aria-hidden="true">🔑</span> Digital Keys</a>
+        <a href="users.html" class="nav-item users-only"><span class="nav-icon" aria-hidden="true">👥</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon" aria-hidden="true">ℹ️</span> About</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUserName" style="font-weight:bold;">User</div>
+        <div id="sidebarUserRole" style="font-size:0.8rem; color: var(--text-muted);">Role</div>
+        <a href="login.html" id="logoutBtn" style="color:var(--status-tampered); display:block; margin-top:10px;">🚪 Logout</a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="hamburger" id="hamburger" aria-label="Toggle navigation menu">☰</button>
+          <span style="font-size:1.1rem; font-weight:700; color:var(--text-main);">EvidenceGuard</span>
+        </div>
+        <div class="topbar-right">
+          <span class="live-clock" id="liveClock" aria-label="Current system time"></span>
+          <div class="user-area">
+            <span class="badge badge-verified" id="custodyStatusBadge">Custody Active</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main-content" style="overflow-y: auto; padding: 2rem 1.5rem;">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+          <div>
+            <div class="prototype-badge" style="margin-bottom: 0.5rem;">
+              <span aria-hidden="true">🤝</span> Forensic Chain of Custody Ledger (Sprint 12)
+            </div>
+            <h1 style="font-size: 2rem; font-weight: 800; margin: 0 0 0.35rem 0;">Chain of Custody Hub</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">
+              Sequential tracking, verified handovers, and tamper-evident custody management across the agency.
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" id="btnRefreshCustodyHub" style="display: flex; align-items: center; gap: 6px;">
+              <span>🔄</span> Refresh Custody
+            </button>
+            <a href="records.html" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;">
+              <span>🗂</span> View All Evidence
+            </a>
+          </div>
+        </div>
+
+        <!-- Telemetry Stats Cards -->
+        <div class="stats-grid" style="margin-bottom: 2rem;">
+          <div class="stat-card" style="border-bottom: 3px solid #00c48c;">
+            <div class="stat-icon">📦</div>
+            <div>
+              <div class="stat-val" id="hubCountHeld" style="color: #00c48c;">0</div>
+              <div class="stat-label">In My Physical Custody</div>
+            </div>
+          </div>
+          <div class="stat-card" id="cardPendingIncoming" style="border-bottom: 3px solid #f5a623;">
+            <div class="stat-icon">📥</div>
+            <div>
+              <div class="stat-val" id="hubCountIncoming" style="color: #ffb74d;">0</div>
+              <div class="stat-label">Incoming Handovers (Action Needed)</div>
+            </div>
+          </div>
+          <div class="stat-card" style="border-bottom: 3px solid var(--accent-cyan);">
+            <div class="stat-icon">📤</div>
+            <div>
+              <div class="stat-val" id="hubCountOutgoing" style="color: var(--accent-cyan);">0</div>
+              <div class="stat-label">Outgoing Transfers Pending</div>
+            </div>
+          </div>
+          <div class="stat-card" style="border-bottom: 3px solid #9c27b0;">
+            <div class="stat-icon">🛡</div>
+            <div>
+              <div class="stat-val" style="color: #ba68c8; font-size: 1.3rem; font-weight: 700;">CRYPTOGRAPHIC</div>
+              <div class="stat-label">SHA-256 Hash Chain Integrity</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Incoming Action Alert (if any pending) -->
+        <div id="hubIncomingAlert" class="custody-pending-alert" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 1.8rem;" aria-hidden="true">⚠️</span>
+            <div>
+              <strong style="color: #ffb74d; font-size: 1.05rem;">Custody Handovers Awaiting Your Acceptance</strong>
+              <p style="color: var(--text-main); font-size: 0.9rem; margin: 4px 0 0 0;">
+                You have incoming evidence transfer requests requiring physical inspection and acceptance.
+              </p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" id="btnGoToIncomingTab" style="background: #f5a623; color: #0a0e1a; font-weight: 700;">
+            Review Transfers
+          </button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="custody-tabs">
+          <button type="button" class="custody-tab-btn active" id="tabBtnHeld" data-tab="tabHeld">
+            <span>📦</span> In My Custody <span class="custody-count-pill" id="pillHeld">0</span>
+          </button>
+          <button type="button" class="custody-tab-btn" id="tabBtnIncoming" data-tab="tabIncoming">
+            <span>📥</span> Incoming Transfers <span class="custody-count-pill" id="pillIncoming">0</span>
+          </button>
+          <button type="button" class="custody-tab-btn" id="tabBtnOutgoing" data-tab="tabOutgoing">
+            <span>📤</span> Outgoing Transfers <span class="custody-count-pill" id="pillOutgoing">0</span>
+          </button>
+        </div>
+
+        <!-- Tab 1: Held in Custody -->
+        <div id="tabHeld" class="custody-tab-panel" style="display: block;">
+          <div class="glass-card" style="padding: 1.5rem;">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px;">
+              <span>📦</span> Active Evidence Held in Your Custody
+            </h2>
+            <div class="table-responsive">
+              <table class="table responsive-evidence-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th>Evidence ID</th>
+                    <th>Case ID</th>
+                    <th>Evidence Name</th>
+                    <th>Current Status</th>
+                    <th>Custody Events</th>
+                    <th>Last Activity</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyHeld">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+            <div id="emptyHeldMsg" style="display: none; text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+              You currently hold no active evidence items in your custody.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Incoming Transfers -->
+        <div id="tabIncoming" class="custody-tab-panel" style="display: none;">
+          <div class="glass-card" style="padding: 1.5rem;">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px;">
+              <span>📥</span> Pending Incoming Custody Handovers
+            </h2>
+            <div class="table-responsive">
+              <table class="table responsive-evidence-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th>Evidence ID</th>
+                    <th>From Officer</th>
+                    <th>Transfer Reason</th>
+                    <th>Expires In</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyIncoming">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+            <div id="emptyIncomingMsg" style="display: none; text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+              No incoming custody handovers pending for you.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Outgoing Transfers -->
+        <div id="tabOutgoing" class="custody-tab-panel" style="display: none;">
+          <div class="glass-card" style="padding: 1.5rem;">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px;">
+              <span>📤</span> Outgoing Transfers Awaiting Recipient Acceptance
+            </h2>
+            <div class="table-responsive">
+              <table class="table responsive-evidence-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th>Evidence ID</th>
+                    <th>Designated Recipient</th>
+                    <th>Transfer Reason</th>
+                    <th>Expires In</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyOutgoing">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+            <div id="emptyOutgoingMsg" style="display: none; text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+              No outgoing transfers pending recipient acceptance.
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+      <footer class="page-footer">
+        &copy; 2026 EvidenceGuard — Tamper-Evident Digital Forensics System
+      </footer>
+    </div>
+  </div>
+
+  <!-- Reject Handover Modal -->
+  <div class="modal-overlay" id="hubRejectModal">
+    <div class="modal-content" style="max-width: 480px; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="margin: 0; color: #ff4c4c; display: flex; align-items: center; gap: 8px;">
+          <span>⛔</span> Reject Custody Handover
+        </h3>
+        <button type="button" id="closeHubRejectModalBtn" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <form id="hubRejectForm">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="hubRejectReasonInput" style="display: block; margin-bottom: 6px; font-weight: 600;">Reason for Declining Custody (min 5 chars):</label>
+          <textarea id="hubRejectReasonInput" class="form-control" rows="3" placeholder="e.g. Packaging damaged, wrong officer, unverified contents" required style="width: 100%;"></textarea>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" id="cancelHubRejectBtn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="submitHubRejectBtn" class="btn btn-primary" style="background: #e74c3c;">Decline Handover</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
