@@ -102,6 +102,13 @@ const uploadEvidence = async (req, res, next) => {
     mimeType: req.file.mimetype,
     hash: serverHash,
     storageKey,
+    storage: {
+      driver: storageResult.driver || 'local',
+      key: storageKey,
+      encryption: storageResult.encryption || null,
+      cipherSize: storageResult.cipherSize || req.file.size,
+      cipherSha256: storageResult.cipherSha256 || null
+    },
     status: 'Pending',
     uploadedBy: req.user._id,
     blockNumber: null,
@@ -555,7 +562,10 @@ const downloadEvidence = async (req, res, next) => {
       }
     }
 
-    const stream = storageService.getStream(evidence.storageKey);
+    const stream = await storageService.getStream(evidence.storageKey, {
+      driver: evidence.storage?.driver,
+      encryption: evidence.storage?.encryption
+    });
     res.setHeader('Content-Type', evidence.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(evidence.fileName || 'evidence')}"`);
     if (evidence.fileSize) {

@@ -10,6 +10,18 @@ const evidenceSchema = new mongoose.Schema({
   fileSize: Number,
   mimeType: String,
   storageKey: { type: String, select: false },
+  storage: {
+    driver: { type: String, default: 'local' },
+    key: { type: String },
+    encryption: {
+      alg: { type: String, default: 'AES-256-GCM' },
+      kekId: { type: String },
+      wrappedDek: { type: String },
+      chunkSize: { type: Number, default: 1048576 }
+    },
+    cipherSize: { type: Number },
+    cipherSha256: { type: String }
+  },
   hash: { 
     type: String, 
     required: true, 

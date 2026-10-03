@@ -90,6 +90,25 @@ if (rawPublicBaseUrl && rawPublicBaseUrl.includes('localhost') && !isProduction)
   );
 }
 
+// ── STORAGE_ENCRYPTION & STORAGE_MASTER_KEY ──────────────────────────────────
+const storageEncryption = process.env.STORAGE_ENCRYPTION === 'true' || process.env.FEATURE_REMOTE_STORAGE === 'true';
+const masterKey = process.env.STORAGE_MASTER_KEY || '';
+
+if (storageEncryption) {
+  if (!masterKey || masterKey.trim() === '') {
+    errors.push('STORAGE_MASTER_KEY is required when storage encryption is enabled');
+  } else {
+    try {
+      const decodedKey = Buffer.from(masterKey, 'base64');
+      if (decodedKey.length !== 32) {
+        errors.push(`STORAGE_MASTER_KEY must decode to exactly 32 bytes (got ${decodedKey.length} bytes)`);
+      }
+    } catch (_) {
+      errors.push('STORAGE_MASTER_KEY must be a valid base64-encoded string');
+    }
+  }
+}
+
 // ── Fail fast ─────────────────────────────────────────────────────────────────
 if (errors.length > 0) {
   fail(...errors);
