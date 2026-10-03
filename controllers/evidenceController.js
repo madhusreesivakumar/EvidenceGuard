@@ -193,6 +193,23 @@ const uploadEvidence = async (req, res, next) => {
       }
     }
 
+    // Sprint 14: Forensic analysis auto-extraction (background, non-blocking)
+    if (process.env.FEATURE_FORENSICS === 'true') {
+      const filePath = storageService.getFilePath(storageKey);
+      const { processForensicsForEvidence } = require('../services/forensics/forensicsService');
+      setImmediate(async () => {
+        try {
+          await processForensicsForEvidence(evidenceDoc, filePath, {
+            isRerun: false,
+            actorUser: req.user,
+            req
+          });
+        } catch (forensicsErr) {
+          console.error('[FORENSICS AUTO-EXTRACT ERROR]', forensicsErr.message);
+        }
+      });
+    }
+
     return res.status(201).json({ success: true, message: 'Evidence uploaded successfully', evidence: evidenceObj });
   } catch (err) {
     await storageService.remove(storageKey);

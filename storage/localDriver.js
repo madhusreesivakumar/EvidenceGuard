@@ -32,4 +32,8 @@ const remove = async (storageKey) => {
   }
 };
 
-module.exports = { save, getStream, remove };
+const getFilePath = (storageKey) => {
+  return path.join(UPLOAD_DIR, storageKey);
+};
+
+module.exports = { save, getStream, remove, getFilePath };

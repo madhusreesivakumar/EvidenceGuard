@@ -104,6 +104,37 @@ router.post('/:id/custody/validate',
   custodyController.validateEvidenceCustody
 );
 
+// ─── Sprint 14: Forensics Sub-Routes ────────────────────────────────────────
+const forensicsController = require('../controllers/forensicsController');
+const { requireForensicsFeature, requireForensicsRerunRole, forensicsLimiter } = require('./forensicsRoutes');
+
+// POST /api/evidence/:id/forensics/rerun
+router.post('/:id/forensics/rerun',
+  requireForensicsFeature,
+  authenticate,
+  requireForensicsRerunRole,
+  forensicsLimiter,
+  forensicsController.rerunForensics
+);
+
+// GET /api/evidence/:id/forensics/history
+router.get('/:id/forensics/history',
+  requireForensicsFeature,
+  authenticate,
+  authorizeAction('view'),
+  forensicsLimiter,
+  forensicsController.getForensicsHistory
+);
+
+// GET /api/evidence/:id/forensics
+router.get('/:id/forensics',
+  requireForensicsFeature,
+  authenticate,
+  authorizeAction('view'),
+  forensicsLimiter,
+  forensicsController.getForensicsReport
+);
+
 // GET /api/evidence/:id/download
 router.get('/:id/download',
   authenticate,

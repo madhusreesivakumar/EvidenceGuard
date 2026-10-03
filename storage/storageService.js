@@ -18,5 +18,6 @@ module.exports = {
   save: driver.save,
   getStream: driver.getStream,
   remove: driver.remove,
+  getFilePath: driver.getFilePath,
   sanitizeFilename
 };

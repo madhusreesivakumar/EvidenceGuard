@@ -104,6 +104,7 @@ module.exports = {
   isProduction,
   clientOrigin: process.env.CLIENT_ORIGIN || null,
   featureNotifications: process.env.FEATURE_NOTIFICATIONS === 'true',
+  featureForensics: process.env.FEATURE_FORENSICS === 'true',
   smtpHost: process.env.SMTP_HOST || 'localhost',
   smtpPort: parseInt(process.env.SMTP_PORT || '1025', 10),
   smtpUser: process.env.SMTP_USER || '',
