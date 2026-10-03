@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const verificationSchema = new mongoose.Schema({
-  verificationId: { type: String, required: true, unique: true },
+  verificationId: { type: String, required: true },
+  orgId: { type: String, required: true, default: 'default', index: true },
   evidenceId: { type: String, required: true },
   caseId: { type: String },
   originalHash: { type: String, required: true },
@@ -17,8 +18,9 @@ const verificationSchema = new mongoose.Schema({
   isDemo: { type: Boolean, default: false }
 });
 
-verificationSchema.index({ evidenceId: 1, verifiedAt: -1 });
-verificationSchema.index({ caseId: 1 });
+verificationSchema.index({ orgId: 1, verificationId: 1 }, { unique: true });
+verificationSchema.index({ orgId: 1, evidenceId: 1, verifiedAt: -1 });
+verificationSchema.index({ orgId: 1, caseId: 1 });
 
 const rejectModification = function () {
   throw new Error('Verifications are append-only. Updates and deletions are forbidden.');

@@ -19,6 +19,7 @@ try {
 
 const { NOTIFICATION_TYPES, COALESCE_WINDOW_MS, RULES } = require('../config/notificationRules');
 const { nextNotificationId } = require('./idService');
+const { scoped } = require('./tenantScope');
 
 // Sliding window tracker for failed login attempts: email -> Array<number> (timestamps)
 const failedLoginMap = new Map();
@@ -55,8 +56,13 @@ async function dispatchNotification(ruleType, eventData) {
   const baseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
   const formatted = rule.format(eventData, baseUrl);
 
+  const orgId = eventData.orgId || eventData.user?.orgId || 'default';
+  const ScopedNotification = scoped(Notification, orgId);
+  const ScopedUser = scoped(User, orgId);
+  const ScopedCustody = CustodyEvent ? scoped(CustodyEvent, orgId) : null;
+
   // Resolve target recipients
-  const recipientIds = await rule.resolveRecipients(eventData, { User, CustodyEvent });
+  const recipientIds = await rule.resolveRecipients(eventData, { User: ScopedUser, CustodyEvent: ScopedCustody });
   if (!recipientIds || recipientIds.length === 0) {
     return [];
   }
@@ -84,7 +90,7 @@ async function dispatchNotification(ruleType, eventData) {
       }
 
       try {
-        const existing = await Notification.findOne(coalesceQuery).lean();
+        const existing = await ScopedNotification.findOne(coalesceQuery).lean();
         if (existing) {
           dedupeKey = existing.dedupeKey;
         } else {
@@ -93,9 +99,10 @@ async function dispatchNotification(ruleType, eventData) {
           dedupeKey = `${rule.type}${evSuffix}:${userId}:${timeBucket}`;
         }
 
-        const notificationId = await nextNotificationId();
+        const notificationId = await nextNotificationId(orgId);
         const notificationDoc = {
           notificationId,
+          orgId,
           userId,
           channel,
           type: rule.type,
@@ -115,7 +122,7 @@ async function dispatchNotification(ruleType, eventData) {
           createdAt: new Date()
         };
 
-        const created = await Notification.create(notificationDoc);
+        const created = await ScopedNotification.create(notificationDoc);
         createdNotifications.push(created);
       } catch (err) {
         if (err.code === 11000) {

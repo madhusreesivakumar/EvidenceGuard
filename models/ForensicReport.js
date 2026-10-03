@@ -13,6 +13,12 @@ const forensicReportSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  orgId: {
+    type: String,
+    required: true,
+    default: 'default',
+    index: true
+  },
   version: {
     type: Number,
     required: true,
@@ -80,10 +86,10 @@ const forensicReportSchema = new mongoose.Schema({
 });
 
 // Compound unique index ensuring version numbers for an evidenceId are strictly unique
-forensicReportSchema.index({ evidenceId: 1, version: 1 }, { unique: true });
+forensicReportSchema.index({ orgId: 1, evidenceId: 1, version: 1 }, { unique: true });
 
 // Compound index for querying latest report
-forensicReportSchema.index({ evidenceId: 1, version: -1 });
+forensicReportSchema.index({ orgId: 1, evidenceId: 1, version: -1 });
 
 // Append-only constraint: prevent updates and deletions
 const throwAppendOnlyError = function(next) {

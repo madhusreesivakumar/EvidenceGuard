@@ -8,8 +8,11 @@
  * crash recovery, single-flight per job, and audit trail error logging.
  */
 
-const Notification = require('../models/Notification');
-const User = require('../models/User');
+const { unscoped } = require('./tenantScope');
+const RawNotification = require('../models/Notification');
+const RawUser = require('../models/User');
+const Notification = unscoped(RawNotification);
+const User = unscoped(RawUser);
 const { sendNotificationEmail, stripCrLf } = require('./emailService');
 const { logEvent } = require('./auditService');
 

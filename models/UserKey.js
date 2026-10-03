@@ -6,8 +6,13 @@ const UserKeySchema = new mongoose.Schema({
   keyId: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
+    index: true
+  },
+  orgId: {
+    type: String,
+    required: true,
+    default: 'default',
     index: true
   },
   userId: {
@@ -28,7 +33,6 @@ const UserKeySchema = new mongoose.Schema({
   fingerprint: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     trim: true,
     index: true
@@ -63,7 +67,8 @@ const UserKeySchema = new mongoose.Schema({
   collection: 'userkeys'
 });
 
-// Index to quickly count active keys per user
-UserKeySchema.index({ userId: 1, status: 1 });
+UserKeySchema.index({ orgId: 1, keyId: 1 }, { unique: true });
+UserKeySchema.index({ orgId: 1, fingerprint: 1 }, { unique: true });
+UserKeySchema.index({ orgId: 1, userId: 1, status: 1 });
 
 module.exports = mongoose.model('UserKey', UserKeySchema);

@@ -3,6 +3,7 @@
 const CustodyEvent = require('../models/CustodyEvent');
 const Evidence = require('../models/Evidence');
 const User = require('../models/User');
+const { scoped } = require('../services/tenantScope');
 const {
   deriveCustodyState,
   validateCustodyChain,
@@ -12,8 +13,10 @@ const {
 /**
  * Helper to ensure evidence exists.
  */
-async function findEvidence(id) {
-  return await Evidence.findOne({
+async function findEvidence(id, user) {
+  if (!id || typeof id !== 'string') return null;
+  const ScopedEvidence = scoped(Evidence, user);
+  return await ScopedEvidence.findOne({
     $or: [{ evidenceId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }],
     isDeleted: false
   }).lean();
@@ -25,7 +28,7 @@ async function findEvidence(id) {
  */
 async function getEvidenceCustody(req, res, next) {
   try {
-    const evidence = await findEvidence(req.params.id);
+    const evidence = await findEvidence(req.params.id, req.user);
     if (!evidence) {
       return res.status(404).json({
         success: false,
@@ -34,7 +37,8 @@ async function getEvidenceCustody(req, res, next) {
       });
     }
 
-    const events = await CustodyEvent.find({ evidenceId: evidence.evidenceId })
+    const ScopedCustody = scoped(CustodyEvent, req.user);
+    const events = await ScopedCustody.find({ evidenceId: evidence.evidenceId })
       .sort({ seq: 1 })
       .lean();
 
@@ -58,11 +62,11 @@ async function getEvidenceCustody(req, res, next) {
 
 /**
  * POST /api/evidence/:id/custody
- * Record a new custody event (TRANSFER_INITIATED, ANALYZED, STORED, RELEASED, RETURNED).
+ * Append a custody event (TRANSFER_INITIATED, ACCESSED, ANALYZED, STORED, RELEASED, RETURNED).
  */
 async function createEvidenceCustodyEvent(req, res, next) {
   try {
-    const evidence = await findEvidence(req.params.id);
+    const evidence = await findEvidence(req.params.id, req.user);
     if (!evidence) {
       return res.status(404).json({
         success: false,
@@ -77,6 +81,7 @@ async function createEvidenceCustodyEvent(req, res, next) {
       externalParty,
       reason,
       location,
+      notes,
       conditionNotes,
       occurredAt,
       expectedSeq,
@@ -91,7 +96,8 @@ async function createEvidenceCustodyEvent(req, res, next) {
       externalParty,
       reason,
       location,
-      conditionNotes,
+      notes,
+      conditionNotes: conditionNotes || notes,
       occurredAt,
       expectedSeq,
       signature,
@@ -100,14 +106,14 @@ async function createEvidenceCustodyEvent(req, res, next) {
 
     return res.status(201).json({
       success: true,
-      message: `Custody event [${type}] successfully recorded`,
+      message: 'Custody event recorded successfully',
       event
     });
   } catch (err) {
     if (err.status) {
       return res.status(err.status).json({
         success: false,
-        code: err.code || 'BAD_REQUEST',
+        code: err.code || 'CUSTODY_ERROR',
         message: err.message
       });
     }
@@ -116,16 +122,29 @@ async function createEvidenceCustodyEvent(req, res, next) {
 }
 
 /**
- * POST /api/custody/:custodyId/accept
+ * POST /api/evidence/:id/custody/transfer/accept
  * Accept a pending custody transfer.
  */
 async function acceptTransfer(req, res, next) {
   try {
-    const { custodyId } = req.params;
-    const initiateEvent = await CustodyEvent.findOne({
-      custodyId,
-      type: 'TRANSFER_INITIATED'
-    }).lean();
+    const custodyId = req.params.custodyId || req.body?.transferId;
+    const ScopedCustody = scoped(CustodyEvent, req.user);
+
+    let initiateEvent = null;
+    if (custodyId) {
+      initiateEvent = await ScopedCustody.findOne({
+        custodyId,
+        type: 'TRANSFER_INITIATED'
+      }).lean();
+    } else if (req.params.id) {
+      const evidence = await findEvidence(req.params.id, req.user);
+      if (evidence) {
+        initiateEvent = await ScopedCustody.findOne({
+          evidenceId: evidence.evidenceId,
+          type: 'TRANSFER_INITIATED'
+        }).sort({ seq: -1 }).lean();
+      }
+    }
 
     if (!initiateEvent) {
       return res.status(404).json({
@@ -135,12 +154,21 @@ async function acceptTransfer(req, res, next) {
       });
     }
 
+    if (String(initiateEvent.toUserId) !== String(req.user._id)) {
+      return res.status(403).json({
+        success: false,
+        code: 'NOT_TRANSFER_RECIPIENT',
+        message: 'Only the designated recipient can accept this custody transfer'
+      });
+    }
+
     const {
       reason = 'Custody transfer accepted and physical custody assumed',
       location,
       conditionNotes,
       occurredAt,
-      expectedSeq
+      expectedSeq,
+      signature
     } = req.body;
 
     const accepted = await recordCustodyEvent({
@@ -153,6 +181,7 @@ async function acceptTransfer(req, res, next) {
       conditionNotes,
       occurredAt,
       expectedSeq,
+      signature,
       req
     });
 
@@ -174,16 +203,29 @@ async function acceptTransfer(req, res, next) {
 }
 
 /**
- * POST /api/custody/:custodyId/reject
+ * POST /api/custody/:custodyId/reject or /api/evidence/:id/custody/transfer/reject
  * Reject a pending custody transfer.
  */
 async function rejectTransfer(req, res, next) {
   try {
-    const { custodyId } = req.params;
-    const initiateEvent = await CustodyEvent.findOne({
-      custodyId,
-      type: 'TRANSFER_INITIATED'
-    }).lean();
+    const custodyId = req.params.custodyId || req.body?.transferId;
+    const ScopedCustody = scoped(CustodyEvent, req.user);
+
+    let initiateEvent = null;
+    if (custodyId) {
+      initiateEvent = await ScopedCustody.findOne({
+        custodyId,
+        type: 'TRANSFER_INITIATED'
+      }).lean();
+    } else if (req.params.id) {
+      const evidence = await findEvidence(req.params.id, req.user);
+      if (evidence) {
+        initiateEvent = await ScopedCustody.findOne({
+          evidenceId: evidence.evidenceId,
+          type: 'TRANSFER_INITIATED'
+        }).sort({ seq: -1 }).lean();
+      }
+    }
 
     if (!initiateEvent) {
       return res.status(404).json({
@@ -193,15 +235,24 @@ async function rejectTransfer(req, res, next) {
       });
     }
 
+    if (String(initiateEvent.toUserId) !== String(req.user._id)) {
+      return res.status(403).json({
+        success: false,
+        code: 'UNAUTHORIZED_RECIPIENT',
+        message: 'Only the designated recipient can reject this custody transfer'
+      });
+    }
+
     const {
       reason,
       location,
       conditionNotes,
       occurredAt,
-      expectedSeq
+      expectedSeq,
+      signature
     } = req.body;
 
-    if (!reason || reason.trim().length < 5) {
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
       return res.status(400).json({
         success: false,
         code: 'REASON_REQUIRED',
@@ -218,6 +269,7 @@ async function rejectTransfer(req, res, next) {
       conditionNotes,
       occurredAt,
       expectedSeq,
+      signature,
       req
     });
 
@@ -239,16 +291,29 @@ async function rejectTransfer(req, res, next) {
 }
 
 /**
- * POST /api/custody/:custodyId/cancel
- * Cancel an outgoing pending custody transfer.
+ * POST /api/custody/:custodyId/cancel or /api/evidence/:id/custody/transfer/cancel
+ * Cancel an outgoing custody transfer (by the initiator).
  */
 async function cancelTransfer(req, res, next) {
   try {
-    const { custodyId } = req.params;
-    const initiateEvent = await CustodyEvent.findOne({
-      custodyId,
-      type: 'TRANSFER_INITIATED'
-    }).lean();
+    const custodyId = req.params.custodyId || req.body?.transferId;
+    const ScopedCustody = scoped(CustodyEvent, req.user);
+
+    let initiateEvent = null;
+    if (custodyId) {
+      initiateEvent = await ScopedCustody.findOne({
+        custodyId,
+        type: 'TRANSFER_INITIATED'
+      }).lean();
+    } else if (req.params.id) {
+      const evidence = await findEvidence(req.params.id, req.user);
+      if (evidence) {
+        initiateEvent = await ScopedCustody.findOne({
+          evidenceId: evidence.evidenceId,
+          type: 'TRANSFER_INITIATED'
+        }).sort({ seq: -1 }).lean();
+      }
+    }
 
     if (!initiateEvent) {
       return res.status(404).json({
@@ -258,12 +323,21 @@ async function cancelTransfer(req, res, next) {
       });
     }
 
+    if (String(initiateEvent.actorUserId) !== String(req.user._id) && !['ADMIN', 'ORG_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        code: 'UNAUTHORIZED_INITIATOR',
+        message: 'Only the initiator or an administrator can cancel this transfer'
+      });
+    }
+
     const {
       reason = 'Custody transfer cancelled by initiator',
       location,
       conditionNotes,
       occurredAt,
-      expectedSeq
+      expectedSeq,
+      signature
     } = req.body;
 
     const cancelled = await recordCustodyEvent({
@@ -275,6 +349,7 @@ async function cancelTransfer(req, res, next) {
       conditionNotes,
       occurredAt,
       expectedSeq,
+      signature,
       req
     });
 
@@ -296,15 +371,18 @@ async function cancelTransfer(req, res, next) {
 }
 
 /**
- * GET /api/custody/mine
+ * GET /api/custody/my
+ * Hub overview for the authenticated user.
  * Items currently held by me and pending incoming/outgoing transfers.
  */
 async function getMyCustody(req, res, next) {
   try {
     const currentUserIdStr = String(req.user._id);
+    const ScopedCustody = scoped(CustodyEvent, req.user);
+    const ScopedEvidence = scoped(Evidence, req.user);
 
     // Fetch distinct evidence IDs involving the user as actor or recipient
-    const relevantEvidenceIds = await CustodyEvent.distinct('evidenceId', {
+    const relevantEvidenceIds = await ScopedCustody.distinct('evidenceId', {
       $or: [
         { actorUserId: req.user._id },
         { toUserId: req.user._id }
@@ -313,12 +391,12 @@ async function getMyCustody(req, res, next) {
 
     // Also include all active evidence if admin
     let targetIds = relevantEvidenceIds;
-    if (req.user.role === 'ADMIN') {
-      const allActive = await Evidence.distinct('evidenceId', { isDeleted: false });
+    if (['ADMIN', 'ORG_ADMIN'].includes(req.user.role)) {
+      const allActive = await ScopedEvidence.distinct('evidenceId', { isDeleted: false });
       targetIds = Array.from(new Set([...relevantEvidenceIds, ...allActive]));
     }
 
-    const evidenceList = await Evidence.find({
+    const evidenceList = await ScopedEvidence.find({
       evidenceId: { $in: targetIds },
       isDeleted: false
     }).lean();
@@ -332,7 +410,7 @@ async function getMyCustody(req, res, next) {
 
     // Evaluate each evidence chain
     for (const evId of targetIds) {
-      const events = await CustodyEvent.find({ evidenceId: evId }).sort({ seq: 1 }).lean();
+      const events = await ScopedCustody.find({ evidenceId: evId }).sort({ seq: 1 }).lean();
       if (events.length === 0) continue;
 
       const state = deriveCustodyState(events);
@@ -350,36 +428,39 @@ async function getMyCustody(req, res, next) {
         });
       }
 
-      // 2. Incoming pending transfers
-      if (state.pendingTransfer && !state.pendingTransfer.isExpired) {
-        if (String(state.pendingTransfer.toUserId) === currentUserIdStr) {
-          pendingIncoming.push({
-            evidence: evMeta,
-            transfer: state.pendingTransfer,
-            totalEvents: events.length
-          });
-        }
-        // 3. Outgoing pending transfers
-        if (String(state.pendingTransfer.fromUserId) === currentUserIdStr) {
-          pendingOutgoing.push({
-            evidence: evMeta,
-            transfer: state.pendingTransfer,
-            totalEvents: events.length
-          });
-        }
+      // 2. Transfers pending MY acceptance (Incoming)
+      if (state.pendingTransfer && String(state.pendingTransfer.toUserId) === currentUserIdStr) {
+        pendingIncoming.push({
+          evidence: evMeta,
+          transfer: state.pendingTransfer,
+          initiatedBy: state.pendingTransfer.fromUser,
+          reason: state.pendingTransfer.reason,
+          timestamp: state.pendingTransfer.timestamp
+        });
+      }
+
+      // 3. Transfers initiated by ME pending recipient acceptance (Outgoing)
+      if (state.pendingTransfer && String(state.pendingTransfer.fromUserId) === currentUserIdStr) {
+        pendingOutgoing.push({
+          evidence: evMeta,
+          transfer: state.pendingTransfer,
+          recipient: state.pendingTransfer.toUser,
+          reason: state.pendingTransfer.reason,
+          timestamp: state.pendingTransfer.timestamp
+        });
       }
     }
 
     return res.json({
       success: true,
-      itemsInCustody,
-      pendingIncoming,
-      pendingOutgoing,
       counts: {
         held: itemsInCustody.length,
         incoming: pendingIncoming.length,
         outgoing: pendingOutgoing.length
-      }
+      },
+      itemsInCustody,
+      pendingIncoming,
+      pendingOutgoing
     });
   } catch (err) {
     next(err);
@@ -387,12 +468,12 @@ async function getMyCustody(req, res, next) {
 }
 
 /**
- * POST /api/evidence/:id/custody/validate
- * Validate cryptographic integrity and legal transitions of the custody chain.
+ * GET /api/evidence/:id/custody/validate
+ * Validates cryptographic chain integrity of custody events for an evidence.
  */
 async function validateEvidenceCustody(req, res, next) {
   try {
-    const evidence = await findEvidence(req.params.id);
+    const evidence = await findEvidence(req.params.id, req.user);
     if (!evidence) {
       return res.status(404).json({
         success: false,
@@ -401,12 +482,17 @@ async function validateEvidenceCustody(req, res, next) {
       });
     }
 
-    const validationResult = await validateCustodyChain(evidence.evidenceId);
+    const validation = await validateCustodyChain(evidence.evidenceId, req.user);
 
     return res.json({
       success: true,
       evidenceId: evidence.evidenceId,
-      ...validationResult
+      caseId: evidence.caseId,
+      valid: validation.valid,
+      message: validation.valid ? 'CUSTODY CHAIN INTEGRITY: VALID' : 'CUSTODY CHAIN INTEGRITY: INVALID',
+      totalEvents: validation.totalEvents,
+      eventsChecked: validation.totalEvents,
+      issues: validation.issues
     });
   } catch (err) {
     next(err);
@@ -415,12 +501,13 @@ async function validateEvidenceCustody(req, res, next) {
 
 /**
  * GET /api/custody/officers
- * Fetch candidate officers (ADMIN and INVESTIGATOR) for custody transfers.
+ * Fetch candidate officers (ORG_ADMIN, ADMIN, INVESTIGATOR, LAB_ANALYST) in user's org.
  */
 async function getCustodyOfficers(req, res, next) {
   try {
-    const officers = await User.find({
-      role: { $in: ['ADMIN', 'INVESTIGATOR'] },
+    const ScopedUser = scoped(User, req.user);
+    const officers = await ScopedUser.find({
+      role: { $in: ['ORG_ADMIN', 'ADMIN', 'INVESTIGATOR', 'LAB_ANALYST'] },
       isActive: true
     })
       .select('_id name email role')

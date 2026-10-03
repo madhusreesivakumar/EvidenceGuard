@@ -5,6 +5,7 @@ const UserKey = require('../models/UserKey');
 const KeyChallenge = require('../models/KeyChallenge');
 const { validateJwk, computeFingerprint, verifySignature } = require('../services/keyService');
 const { logEvent } = require('../services/auditService');
+const { scoped } = require('../services/tenantScope');
 
 /**
  * GET /api/keys/challenge
@@ -39,6 +40,7 @@ const getChallenge = async (req, res, next) => {
 const registerKey = async (req, res, next) => {
   try {
     const { publicKeyJwk, label, signature, challenge } = req.body;
+    const ScopedKey = scoped(UserKey, req.user);
 
     // 1. Basic validation
     if (!label || typeof label !== 'string' || label.trim().length < 2 || label.trim().length > 60) {
@@ -61,7 +63,7 @@ const registerKey = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         code: 'VALIDATION_ERROR',
-        message: 'Signature over challenge is required.'
+        message: 'Signature is required.'
       });
     }
 
@@ -91,7 +93,6 @@ const registerKey = async (req, res, next) => {
       });
     }
 
-    // Atomically mark challenge as used to prevent replay attacks
     chRecord.used = true;
     await chRecord.save();
 
@@ -118,8 +119,8 @@ const registerKey = async (req, res, next) => {
     // 5. Derive SPKI Fingerprint
     const { fingerprint } = computeFingerprint(publicKeyJwk);
 
-    // 6. Check for duplicate key across the system
-    const existing = await UserKey.findOne({ fingerprint });
+    // 6. Check for duplicate key across the organization
+    const existing = await ScopedKey.findOne({ fingerprint });
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -129,7 +130,7 @@ const registerKey = async (req, res, next) => {
     }
 
     // 7. Enforce max 5 active keys per user
-    const activeKeyCount = await UserKey.countDocuments({
+    const activeKeyCount = await ScopedKey.countDocuments({
       userId: req.user._id,
       status: 'active'
     });
@@ -144,8 +145,9 @@ const registerKey = async (req, res, next) => {
 
     // 8. Create UserKey record
     const keyId = crypto.randomUUID();
-    const newKey = await UserKey.create({
+    const newKey = await ScopedKey.create({
       keyId,
+      orgId: req.user.orgId || 'default',
       userId: req.user._id,
       algorithm: 'ECDSA-P256-SHA256',
       publicKeyJwk: {
@@ -159,21 +161,22 @@ const registerKey = async (req, res, next) => {
       status: 'active'
     });
 
-    // 9. Audit event
+    // 9. Audit Log Entry
     await logEvent({
       action: 'KEY_REGISTERED',
       user: req.user,
-      description: `Cryptographic key registered: ${keyId} (${newKey.label}, fingerprint: ${fingerprint.substring(0, 16)}...)`,
+      description: `Registered signing key "${newKey.label}" (${fingerprint.substring(0, 16)}...)`,
+      orgId: req.user.orgId,
       req
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Key registered successfully',
+      message: 'Key successfully registered.',
       key: {
         keyId: newKey.keyId,
-        fingerprint: newKey.fingerprint,
         label: newKey.label,
+        fingerprint: newKey.fingerprint,
         algorithm: newKey.algorithm,
         status: newKey.status,
         createdAt: newKey.createdAt
@@ -191,7 +194,8 @@ const registerKey = async (req, res, next) => {
  */
 const listOwnKeys = async (req, res, next) => {
   try {
-    const keys = await UserKey.find({ userId: req.user._id })
+    const ScopedKey = scoped(UserKey, req.user);
+    const keys = await ScopedKey.find({ userId: req.user._id })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -217,11 +221,12 @@ const listOwnKeys = async (req, res, next) => {
 
 /**
  * GET /api/keys/:keyId/public
- * Returns public metadata of a key for any authenticated user.
+ * Returns public metadata of a key for any authenticated user in the organization.
  */
 const getPublicKey = async (req, res, next) => {
   try {
-    const key = await UserKey.findOne({ keyId: req.params.keyId }).lean();
+    const ScopedKey = scoped(UserKey, req.user);
+    const key = await ScopedKey.findOne({ keyId: req.params.keyId }).lean();
     if (!key) {
       return res.status(404).json({
         success: false,
@@ -251,7 +256,7 @@ const getPublicKey = async (req, res, next) => {
 
 /**
  * POST /api/keys/:keyId/revoke
- * Revokes a key. Allowed for key owner or ADMIN.
+ * Revokes a key. Allowed for key owner or ADMIN/ORG_ADMIN.
  */
 const revokeKey = async (req, res, next) => {
   try {
@@ -264,7 +269,8 @@ const revokeKey = async (req, res, next) => {
       });
     }
 
-    const key = await UserKey.findOne({ keyId: req.params.keyId });
+    const ScopedKey = scoped(UserKey, req.user);
+    const key = await ScopedKey.findOne({ keyId: req.params.keyId });
     if (!key) {
       return res.status(404).json({
         success: false,
@@ -274,7 +280,7 @@ const revokeKey = async (req, res, next) => {
     }
 
     const isOwner = String(key.userId) === String(req.user._id);
-    const isAdmin = req.user.role === 'ADMIN';
+    const isAdmin = ['ADMIN', 'ORG_ADMIN'].includes(req.user.role);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -300,7 +306,8 @@ const revokeKey = async (req, res, next) => {
     await logEvent({
       action: 'KEY_REVOKED',
       user: req.user,
-      description: `Cryptographic key revoked: ${key.keyId} (${key.label}) - Reason: ${key.revokedReason}`,
+      description: `Revoked signing key "${key.label}" (${key.fingerprint.substring(0, 16)}...). Reason: ${key.revokedReason}`,
+      orgId: req.user.orgId,
       req
     });
 
@@ -309,7 +316,14 @@ const revokeKey = async (req, res, next) => {
       message: 'Key revoked successfully.',
       keyId: key.keyId,
       status: key.status,
-      revokedAt: key.revokedAt
+      revokedAt: key.revokedAt,
+      revokedReason: key.revokedReason,
+      key: {
+        keyId: key.keyId,
+        status: key.status,
+        revokedAt: key.revokedAt,
+        revokedReason: key.revokedReason
+      }
     });
 
   } catch (err) {

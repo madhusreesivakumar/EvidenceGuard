@@ -6,7 +6,12 @@ const custodyEventSchema = new mongoose.Schema({
   custodyId: {
     type: String,
     required: true,
-    unique: true,
+    index: true
+  },
+  orgId: {
+    type: String,
+    required: true,
+    default: 'default',
     index: true
   },
   evidenceId: {
@@ -116,9 +121,10 @@ const custodyEventSchema = new mongoose.Schema({
 });
 
 // Enforce unique sequential ordering per evidence chain
-custodyEventSchema.index({ evidenceId: 1, seq: 1 }, { unique: true });
-custodyEventSchema.index({ actorUserId: 1, type: 1 });
-custodyEventSchema.index({ toUserId: 1, type: 1 });
+custodyEventSchema.index({ orgId: 1, custodyId: 1 }, { unique: true });
+custodyEventSchema.index({ orgId: 1, evidenceId: 1, seq: 1 }, { unique: true });
+custodyEventSchema.index({ orgId: 1, actorUserId: 1, type: 1 });
+custodyEventSchema.index({ orgId: 1, toUserId: 1, type: 1 });
 
 const throwAppendOnlyError = function(next) {
   const err = new Error('Custody events are append-only. Updates and deletions are strictly prohibited.');

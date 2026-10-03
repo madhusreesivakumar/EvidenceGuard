@@ -95,6 +95,7 @@ async function run() {
     const upJson = await upRes.json();
     const activeEvId = upJson.evidence.evidenceId;
     const activeCaseId = upJson.evidence.caseId;
+    const activePublicToken = upJson.evidence.publicToken;
 
     // 2. Upload and delete a second evidence item
     const formData2 = new FormData();
@@ -110,6 +111,7 @@ async function run() {
     const upJson2 = await upRes2.json();
     const deletedEvId = upJson2.evidence.evidenceId;
     const deletedCaseId = upJson2.evidence.caseId;
+    const deletedPublicToken = upJson2.evidence.publicToken;
 
     await fetch(`${baseUrl}/api/evidence/${deletedEvId}`, {
       method: 'DELETE',
@@ -117,9 +119,12 @@ async function run() {
       body: JSON.stringify({ reason: 'Deleting for public test' })
     });
 
-    // ── Test 1: Public endpoint returns EXACTLY whitelisted keys ──
-    const pubRes = await fetch(`${baseUrl}/api/public/verify/${activeCaseId}`);
-    assertTest('Public endpoint status 200 without login', pubRes.status === 200);
+    // ── Test 1: Public endpoint returns EXACTLY whitelisted keys via publicToken ──
+    const pubRes = await fetch(`${baseUrl}/api/public/verify/${activePublicToken}`);
+    assertTest('Public endpoint status 200 via publicToken without login', pubRes.status === 200);
+
+    const pubQueryRes = await fetch(`${baseUrl}/api/public/verify?t=${encodeURIComponent(activePublicToken)}`);
+    assertTest('Public endpoint status 200 via query param ?t= without login', pubQueryRes.status === 200);
 
     const pubJson = await pubRes.json();
     const expectedKeys = ['caseId', 'evidenceId', 'type', 'hash', 'registeredAt', 'status', 'statusAsOf', 'note', 'isDemo'].sort();
@@ -138,17 +143,31 @@ async function run() {
     assertTest('No forbidden keys/content leaked in response', foundForbidden.length === 0, `Found: ${foundForbidden.join(',')}`);
     assertTest('Note text matches required specification', pubJson.note === 'Status shows the result of the most recent verification. It is not a live check of any file.');
 
+    // ── Test 1b: New record without legacyPublic flag cannot be accessed via caseId ──
+    const noLegacyRes = await fetch(`${baseUrl}/api/public/verify/${activeCaseId}`);
+    assertTest('New record without legacyPublic returns 404 for caseId lookup', noLegacyRes.status === 404);
+
+    // ── Test 1c: Legacy record flagged legacyPublic works via caseId ──
+    await Evidence.updateOne({ evidenceId: activeEvId }, { $set: { legacyPublic: true } });
+    const legacyRes = await fetch(`${baseUrl}/api/public/verify/${activeCaseId}`);
+    assertTest('Legacy record with legacyPublic:true resolves via caseId path', legacyRes.status === 200);
+    const legacyQueryRes = await fetch(`${baseUrl}/api/public/verify?caseId=${encodeURIComponent(activeCaseId)}`);
+    assertTest('Legacy record with legacyPublic:true resolves via ?caseId= query', legacyQueryRes.status === 200);
+
     // ── Test 2: Bad format Case ID -> 400 ──
     const badFmtRes = await fetch(`${baseUrl}/api/public/verify/INVALID-ID`);
     assertTest('Bad format returns 400', badFmtRes.status === 400);
 
-    // ── Test 3: Unknown Case ID -> 404 ──
+    // ── Test 3: Unknown Token / Case ID -> 404 ──
     const unknownRes = await fetch(`${baseUrl}/api/public/verify/EG-9999-9999`);
     assertTest('Unknown Case ID returns 404', unknownRes.status === 404);
 
-    // ── Test 4: Deleted Evidence Case ID -> 404 ──
-    const deletedRes = await fetch(`${baseUrl}/api/public/verify/${deletedCaseId}`);
-    assertTest('Deleted Evidence Case ID returns 404', deletedRes.status === 404);
+    const unknownTokenRes = await fetch(`${baseUrl}/api/public/verify/unknown_random_token_12345`);
+    assertTest('Unknown Token returns 404', unknownTokenRes.status === 404);
+
+    // ── Test 4: Deleted Evidence -> 404 ──
+    const deletedRes = await fetch(`${baseUrl}/api/public/verify/${deletedPublicToken}`);
+    assertTest('Deleted Evidence publicToken returns 404', deletedRes.status === 404);
 
     // ── Test 5: Cache-Control: no-store on public response ──
     assertTest('Cache-Control: no-store header set', pubRes.headers.get('cache-control') === 'no-store');
@@ -157,7 +176,7 @@ async function run() {
     const loggedOutQr = await fetch(`${baseUrl}/api/evidence/${activeEvId}/qr`);
     assertTest('QR endpoint returns 401 when logged out', loggedOutQr.status === 401);
 
-    // ── Test 7: QR endpoint with authentication returns required fields and exact URL ──
+    // ── Test 7: QR endpoint with authentication returns required fields and token URL ──
     const loggedInQr = await fetch(`${baseUrl}/api/evidence/${activeEvId}/qr`, {
       headers: { Cookie: adminCookie }
     });
@@ -166,18 +185,21 @@ async function run() {
     assertTest('QR endpoint returns success: true', qrJson.success === true);
     assertTest('QR endpoint returns pngDataUrl', typeof qrJson.pngDataUrl === 'string' && qrJson.pngDataUrl.startsWith('data:image/png;base64,'));
     assertTest('QR endpoint returns svg', typeof qrJson.svg === 'string' && qrJson.svg.includes('<svg'));
-    const expectedUrl = `http://localhost:3000/verify.html?caseId=${encodeURIComponent(activeCaseId)}`;
-    assertTest('QR URL exactly matches required format', qrJson.url === expectedUrl, `Expected ${expectedUrl}, got ${qrJson.url}`);
+    const expectedUrl = `http://localhost:3000/verify.html?t=${encodeURIComponent(activePublicToken)}`;
+    assertTest('QR URL uses /verify.html?t=<token> format', qrJson.url === expectedUrl, `Expected ${expectedUrl}, got ${qrJson.url}`);
+
+    // Regenerating QR moves record to token links (legacyPublic -> false)
+    const reloadedEv = await Evidence.findOne({ evidenceId: activeEvId });
+    assertTest('Regenerating QR moves record to token link (sets legacyPublic: false)', reloadedEv.legacyPublic === false);
 
     // ── Test 8: QR audit row created with action QR_GENERATED ──
     const qrAudit = await AuditLog.findOne({ action: 'QR_GENERATED', evidenceId: activeEvId });
     assertTest('Audit row created for QR generation', !!qrAudit && qrAudit.caseId === activeCaseId);
 
     // ── Test 9: Public rate limiting (60 per 15 min per IP) ──
-    // Send requests up to limit
     let hit429 = false;
     for (let i = 0; i < 65; i++) {
-      const r = await fetch(`${baseUrl}/api/public/verify/${activeCaseId}`);
+      const r = await fetch(`${baseUrl}/api/public/verify/${activePublicToken}`);
       if (r.status === 429) {
         hit429 = true;
         break;

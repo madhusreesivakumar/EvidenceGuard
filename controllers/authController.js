@@ -1,4 +1,6 @@
-const User = require('../models/User');
+const { unscoped } = require('../services/tenantScope');
+const RawUser = require('../models/User');
+const User = unscoped(RawUser);
 const bcrypt = require('bcrypt');
 const { validationResult } = require('express-validator');
 const { generateToken, verifyToken } = require('../services/tokenService');

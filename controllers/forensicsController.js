@@ -8,6 +8,7 @@
 const Evidence = require('../models/Evidence');
 const ForensicReport = require('../models/ForensicReport');
 const storageService = require('../storage/storageService');
+const { scoped } = require('../services/tenantScope');
 const fs = require('fs');
 const {
   processForensicsForEvidence,
@@ -18,9 +19,10 @@ const { DISCLAIMER } = require('../services/forensics/anomalyEngine');
 /**
  * Helper to resolve evidence by evidenceId or _id
  */
-async function findEvidence(id) {
+async function findEvidence(id, user) {
   if (!id) return null;
-  return await Evidence.findOne({
+  const ScopedEvidence = scoped(Evidence, user);
+  return await ScopedEvidence.findOne({
     $or: [{ evidenceId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }],
     isDeleted: false
   }).select('+storageKey');
@@ -33,7 +35,7 @@ async function findEvidence(id) {
  */
 async function rerunForensics(req, res, next) {
   try {
-    const evidence = await findEvidence(req.params.id);
+    const evidence = await findEvidence(req.params.id, req.user);
     if (!evidence) {
       return res.status(404).json({
         success: false,
@@ -77,7 +79,7 @@ async function rerunForensics(req, res, next) {
  */
 async function getForensicsReport(req, res, next) {
   try {
-    const evidence = await findEvidence(req.params.id);
+    const evidence = await findEvidence(req.params.id, req.user);
     if (!evidence) {
       return res.status(404).json({
         success: false,
@@ -94,7 +96,8 @@ async function getForensicsReport(req, res, next) {
       }
     }
 
-    const report = await ForensicReport.findOne(query)
+    const ScopedReport = scoped(ForensicReport, req.user);
+    const report = await ScopedReport.findOne(query)
       .sort({ version: -1 })
       .lean();
 
@@ -124,7 +127,7 @@ async function getForensicsReport(req, res, next) {
  */
 async function getForensicsHistory(req, res, next) {
   try {
-    const evidence = await findEvidence(req.params.id);
+    const evidence = await findEvidence(req.params.id, req.user);
     if (!evidence) {
       return res.status(404).json({
         success: false,
@@ -133,7 +136,8 @@ async function getForensicsHistory(req, res, next) {
       });
     }
 
-    const versions = await ForensicReport.find({ evidenceId: evidence.evidenceId })
+    const ScopedReport = scoped(ForensicReport, req.user);
+    const versions = await ScopedReport.find({ evidenceId: evidence.evidenceId })
       .sort({ version: -1 })
       .select('evidenceId version extractorVersion extractedAt fileSignature status metadataHash diffFromPrevious')
       .lean();

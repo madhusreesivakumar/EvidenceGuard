@@ -1,10 +1,13 @@
+'use strict';
+
 const fs = require('fs');
 const { resolveEvidence, compareHashes, checkChainConsistency } = require('../services/verificationService');
 const { sha256Stream } = require('../services/hashService');
+const { getNextSequence } = require('../services/idService');
 const Verification = require('../models/Verification');
 const Evidence = require('../models/Evidence');
-const Counter = require('../models/Counter');
 const { logEvent } = require('../services/auditService');
+const { scoped } = require('../services/tenantScope');
 
 const lookupEvidence = async (req, res, next) => {
   try {
@@ -12,7 +15,7 @@ const lookupEvidence = async (req, res, next) => {
     if (!identifier) {
       return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Missing evidenceId or caseId' });
     }
-    const evidence = await resolveEvidence(identifier);
+    const evidence = await resolveEvidence(identifier, req.user);
     
     // safe fields only
     res.json({
@@ -41,10 +44,11 @@ const verifyEvidence = async (req, res, next) => {
     const identifier = req.params.id;
     const clientHash = req.body.clientHash;
     const file = req.file;
+    const orgId = req.user?.orgId || 'default';
 
     let evidence;
     try {
-      evidence = await resolveEvidence(identifier);
+      evidence = await resolveEvidence(identifier, req.user);
     } catch(err) {
       if (file) fs.unlinkSync(file.path);
       if (err.status === 400) return res.status(400).json({ success: false, code: err.code || 'INVALID_ID', message: err.message });
@@ -78,15 +82,13 @@ const verifyEvidence = async (req, res, next) => {
     const resultEnum = isMatch ? 'VERIFIED' : 'TAMPERED';
     const chainConsistent = await checkChainConsistency(evidence);
 
-    const counter = await Counter.findByIdAndUpdate(
-      { _id: 'verificationId' },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
-    );
-    const verId = `VER-${String(counter.seq).padStart(6, '0')}`;
+    const seq = await getNextSequence('verificationId', orgId);
+    const verId = `VER-${String(seq).padStart(6, '0')}`;
 
-    const verification = new Verification({
+    const ScopedVerification = scoped(Verification, req.user);
+    const verification = new ScopedVerification({
       verificationId: verId,
+      orgId,
       evidenceId: evidence.evidenceId,
       caseId: evidence.caseId,
       originalHash: evidence.hash,
@@ -103,7 +105,8 @@ const verifyEvidence = async (req, res, next) => {
 
     await verification.save();
 
-    await Evidence.findOneAndUpdate(
+    const ScopedEvidence = scoped(Evidence, req.user);
+    await ScopedEvidence.findOneAndUpdate(
       { evidenceId: evidence.evidenceId },
       { 
         $set: { 
@@ -119,6 +122,7 @@ const verifyEvidence = async (req, res, next) => {
       evidenceId: evidence.evidenceId,
       caseId: evidence.caseId,
       description: `Verification result: ${resultEnum} for ${evidence.evidenceId}`,
+      orgId,
       req
     });
 
@@ -129,6 +133,7 @@ const verifyEvidence = async (req, res, next) => {
         evidenceId: evidence.evidenceId,
         caseId: evidence.caseId,
         description: `Tamper detected on ${evidence.evidenceId}. Orig: ${evidence.hash.substring(0, 12)} Sub: ${serverHash.substring(0, 12)}`,
+        orgId,
         req
       });
 
@@ -140,6 +145,7 @@ const verifyEvidence = async (req, res, next) => {
           verification,
           actorUser: req.user,
           submittedHash: serverHash,
+          orgId,
           req
         });
       } catch (busErr) {
@@ -196,15 +202,16 @@ const verifyEvidence = async (req, res, next) => {
 const getVerifications = async (req, res, next) => {
   try {
     const identifier = req.params.id;
-    const evidence = await resolveEvidence(identifier);
+    const evidence = await resolveEvidence(identifier, req.user);
 
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 20, 50);
     const skip = (page - 1) * limit;
 
+    const ScopedVerification = scoped(Verification, req.user);
     const query = { evidenceId: evidence.evidenceId };
     
-    const verifications = await Verification.find(query)
+    const verifications = await ScopedVerification.find(query)
       .sort({ verifiedAt: -1 })
       .skip(skip)
       .limit(limit)

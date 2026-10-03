@@ -1,11 +1,13 @@
 const { validationResult } = require('express-validator');
 const fs = require('fs');
+const crypto = require('crypto');
 const Evidence = require('../models/Evidence');
 const hashService = require('../services/hashService');
 const idService = require('../services/idService');
 const storageService = require('../storage/storageService');
 const { logEvent } = require('../services/auditService');
 const { appendBlock } = require('../services/chainService');
+const { scoped } = require('../services/tenantScope');
 const mongoose = require('mongoose');
 const QRCode = require('qrcode');
 
@@ -45,8 +47,11 @@ const uploadEvidence = async (req, res, next) => {
     });
   }
 
-  // Duplicate Check
-  const existing = await Evidence.findOne({ hash: serverHash, isDeleted: false });
+  const orgId = req.user?.orgId || 'default';
+  const ScopedEvidence = scoped(Evidence, req.user);
+
+  // Duplicate Check per organization
+  const existing = await ScopedEvidence.findOne({ hash: serverHash, isDeleted: false });
   if (existing) {
     fs.unlink(tempPath, () => {});
     await logEvent({
@@ -55,6 +60,7 @@ const uploadEvidence = async (req, res, next) => {
       evidenceId: existing.evidenceId,
       caseId: existing.caseId,
       description: `Duplicate upload rejected (matches ${existing.evidenceId})`,
+      orgId,
       req
     });
     return res.status(409).json({
@@ -71,8 +77,8 @@ const uploadEvidence = async (req, res, next) => {
 
   let evidenceId, caseId;
   try {
-    evidenceId = await idService.nextEvidenceId();
-    caseId = await idService.nextCaseId();
+    evidenceId = await idService.nextEvidenceId(orgId);
+    caseId = await idService.nextCaseId(orgId);
   } catch (err) {
     fs.unlink(tempPath, () => {});
     return res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'Failed to generate IDs' });
@@ -90,9 +96,11 @@ const uploadEvidence = async (req, res, next) => {
   }
 
   const safeFileName = storageService.sanitizeFilename(req.file.originalname);
+  const publicToken = crypto.randomBytes(16).toString('base64url');
 
   const evidenceData = {
     evidenceId,
+    orgId,
     caseId,
     name,
     type,
@@ -100,6 +108,8 @@ const uploadEvidence = async (req, res, next) => {
     fileName: safeFileName,
     fileSize: req.file.size,
     mimeType: req.file.mimetype,
+    publicToken,
+    legacyPublic: false,
     hash: serverHash,
     storageKey,
     storage: {
@@ -122,37 +132,37 @@ const uploadEvidence = async (req, res, next) => {
     if (global.TRANSACTIONS_SUPPORTED) {
       const session = await mongoose.startSession();
       await session.withTransaction(async () => {
-        evidenceDoc = new Evidence(evidenceData);
-        blockDoc = await appendBlock({ evidence: evidenceDoc, session });
+        evidenceDoc = new ScopedEvidence(evidenceData);
+        blockDoc = await appendBlock({ evidence: evidenceDoc, orgId, session });
         evidenceDoc.blockNumber = blockDoc.blockNumber;
         await evidenceDoc.save({ session });
       });
       session.endSession();
     } else {
       // Compensating Rollback Fallback
-      evidenceDoc = new Evidence(evidenceData);
-      
-      // Try block first or evidence first? 
-      // Insert evidence first so we can rollback evidence if block fails.
+      evidenceDoc = new ScopedEvidence(evidenceData);
       await evidenceDoc.save();
 
       try {
-        blockDoc = await appendBlock({ evidence: evidenceDoc, session: null });
+        blockDoc = await appendBlock({ evidence: evidenceDoc, orgId, session: null });
         evidenceDoc.blockNumber = blockDoc.blockNumber;
         await evidenceDoc.save();
       } catch (blockErr) {
         // Rollback evidence and storage
-        await Evidence.deleteOne({ _id: evidenceDoc._id });
-        throw blockErr; // Handled in outer catch
+        await ScopedEvidence.deleteOne({ _id: evidenceDoc._id });
+        await storageService.remove(storageKey);
+        throw blockErr;
       }
     }
 
+    // Success Audit Events
     await logEvent({
       action: 'HASH_GENERATED',
       user: req.user,
       evidenceId,
       caseId,
       description: `Hash generated for evidence ${safeFileName}: ${serverHash}`,
+      orgId,
       req
     });
 
@@ -162,6 +172,7 @@ const uploadEvidence = async (req, res, next) => {
       evidenceId,
       caseId,
       description: `Uploaded evidence ${evidenceId}`,
+      orgId,
       req
     });
 
@@ -171,18 +182,17 @@ const uploadEvidence = async (req, res, next) => {
       evidenceId,
       caseId,
       description: `Block #${blockDoc.blockNumber} created for ${evidenceId}`,
+      orgId,
       req
     });
 
-    // Strip storageKey manually for return
     const evidenceObj = evidenceDoc.toObject();
     delete evidenceObj.storageKey;
-    
-    // Response from POST /api/evidence now includes blockNumber and the block's currentHash
+
     evidenceObj.blockNumber = blockDoc.blockNumber;
     evidenceObj.blockHash = blockDoc.currentHash;
 
-    // Sprint 12: Chain of Custody initial COLLECTED event
+    // Sprint 12: Chain of Custody automatic COLLECTED intake event
     if (process.env.FEATURE_CUSTODY === 'true') {
       try {
         const { recordCustodyEvent } = require('../services/custodyService');
@@ -191,30 +201,30 @@ const uploadEvidence = async (req, res, next) => {
           type: 'COLLECTED',
           user: req.user,
           reason: 'Initial digital evidence collection and intake registration',
-          location: 'Digital Intake',
+          location: 'Evidence Intake Facility',
           auto: true,
           req
         });
       } catch (custodyErr) {
-        console.error('[CUSTODY AUTO-COLLECT ERROR]', custodyErr.message);
+        console.warn('[CUSTODY AUTO-INTAKE WARNING]', custodyErr.message);
       }
     }
 
-    // Sprint 14: Forensic analysis auto-extraction (background, non-blocking)
+    // Sprint 14A: Asynchronous Forensic Metadata Extraction
     if (process.env.FEATURE_FORENSICS === 'true') {
-      const filePath = storageService.getFilePath(storageKey);
       const { processForensicsForEvidence } = require('../services/forensics/forensicsService');
-      setImmediate(async () => {
+      const filePath = storageService.getFilePath ? storageService.getFilePath(storageKey) : tempPath;
+      setTimeout(async () => {
         try {
           await processForensicsForEvidence(evidenceDoc, filePath, {
-            isRerun: false,
-            actorUser: req.user,
-            req
+            originalName: safeFileName,
+            mimeType: req.file.mimetype,
+            size: req.file.size
           });
-        } catch (forensicsErr) {
-          console.error('[FORENSICS AUTO-EXTRACT ERROR]', forensicsErr.message);
+        } catch (fErr) {
+          console.error('[FORENSICS AUTO-EXTRACTION ERROR]', fErr.message);
         }
-      });
+      }, 0);
     }
 
     return res.status(201).json({ success: true, message: 'Evidence uploaded successfully', evidence: evidenceObj });
@@ -227,7 +237,7 @@ const uploadEvidence = async (req, res, next) => {
 
     // Catch Race Condition
     if (err.code === 11000 && err.keyPattern && err.keyPattern.hash) {
-      const existing = await Evidence.findOne({ hash: serverHash, isDeleted: false });
+      const existing = await ScopedEvidence.findOne({ hash: serverHash, isDeleted: false });
       if (existing) {
         await logEvent({
           action: 'UPLOAD',
@@ -235,6 +245,7 @@ const uploadEvidence = async (req, res, next) => {
           evidenceId: existing.evidenceId,
           caseId: existing.caseId,
           description: `Duplicate upload rejected (matches ${existing.evidenceId})`,
+          orgId,
           req
         });
         return res.status(409).json({
@@ -261,6 +272,7 @@ const escapeRegex = (string) => {
 const listEvidence = async (req, res, next) => {
   try {
     const { q, type, status, dateFrom, dateTo, sortBy, sortOrder, page, limit } = req.query;
+    const ScopedEvidence = scoped(Evidence, req.user);
     
     let query = { isDeleted: false };
     
@@ -317,23 +329,20 @@ const listEvidence = async (req, res, next) => {
     const sortDir = sortOrder === 'asc' ? 1 : -1;
     
     const [items, total] = await Promise.all([
-      Evidence.find(query)
+      ScopedEvidence.find(query)
+        .populate('uploadedBy', 'name -_id')
+        .select('-storageKey')
         .sort({ [sortField]: sortDir })
         .skip(skip)
         .limit(limitNum)
-        .populate('uploadedBy', 'name -_id')
-        .select('-storageKey')
         .lean(),
-      Evidence.countDocuments(query)
+      ScopedEvidence.countDocuments(query)
     ]);
     
     const formattedItems = items.map(item => {
-      const uploadedByName = item.uploadedBy ? item.uploadedBy.name : null;
-      delete item.uploadedBy;
-      return {
-        ...item,
-        uploadedByName
-      };
+      const uName = item.uploadedBy ? item.uploadedBy.name : null;
+      const { uploadedBy, ...rest } = item;
+      return { ...rest, uploadedByName: uName };
     });
     
     res.json({
@@ -367,7 +376,8 @@ const getEvidenceDetails = async (req, res, next) => {
     if (isEvId) query.evidenceId = identifier;
     else query.caseId = identifier;
     
-    const evidence = await Evidence.findOne(query)
+    const ScopedEvidence = scoped(Evidence, req.user);
+    const evidence = await ScopedEvidence.findOne(query)
       .populate('uploadedBy', 'name -_id')
       .select('-storageKey')
       .lean();
@@ -381,7 +391,8 @@ const getEvidenceDetails = async (req, res, next) => {
     
     if (evidence.blockNumber != null) {
       const Block = require('../models/Block');
-      const block = await Block.findOne({ blockNumber: evidence.blockNumber }).lean();
+      const ScopedBlock = scoped(Block, req.user);
+      const block = await ScopedBlock.findOne({ blockNumber: evidence.blockNumber }).lean();
       if (block) {
         evidence.block = {
           blockNumber: block.blockNumber,
@@ -393,9 +404,10 @@ const getEvidenceDetails = async (req, res, next) => {
     }
     
     const Verification = require('../models/Verification');
+    const ScopedVerification = scoped(Verification, req.user);
     const [totalVerifications, lastVerification] = await Promise.all([
-      Verification.countDocuments({ evidenceId: evidence.evidenceId }),
-      Verification.findOne({ evidenceId: evidence.evidenceId }).sort({ verifiedAt: -1 }).lean()
+      ScopedVerification.countDocuments({ evidenceId: evidence.evidenceId }),
+      ScopedVerification.findOne({ evidenceId: evidence.evidenceId }).sort({ verifiedAt: -1 }).lean()
     ]);
     
     evidence.verificationSummary = {
@@ -423,9 +435,10 @@ const deleteEvidence = async (req, res, next) => {
     }
 
     const trimmedReason = reason.trim();
+    const ScopedEvidence = scoped(Evidence, req.user);
 
     // Atomic update matching isDeleted false
-    const evidence = await Evidence.findOneAndUpdate(
+    const evidence = await ScopedEvidence.findOneAndUpdate(
       { evidenceId, isDeleted: false },
       {
         $set: {
@@ -448,25 +461,26 @@ const deleteEvidence = async (req, res, next) => {
       try {
         await storageService.remove(evidence.storageKey);
       } catch (err) {
-        console.warn(`[STORAGE WARNING] Failed to remove stored file for ${evidenceId}:`, err.message);
-        await Evidence.updateOne({ _id: evidence._id }, { $set: { storageRemoved: false } });
+        console.error(`[STORAGE REMOVAL FAILURE] Could not delete file ${evidence.storageKey}: ${err.message}`);
       }
     }
 
-    // Audit DELETE with evidenceId, caseId, and the reason in the description
+    // Append-only audit logging: DELETE action
     await logEvent({
       action: 'DELETE',
       user: req.user,
       evidenceId: evidence.evidenceId,
       caseId: evidence.caseId,
-      description: `Evidence deleted: ${trimmedReason}`,
+      description: `Soft deleted evidence ${evidence.evidenceId}: ${trimmedReason}`,
+      orgId: req.user.orgId,
       req
     });
 
     return res.json({
       success: true,
-      message: 'Evidence deleted successfully',
-      evidenceId: evidence.evidenceId
+      message: 'Evidence soft deleted successfully and storage removed',
+      evidenceId: evidence.evidenceId,
+      deletedAt: evidence.deletedAt
     });
   } catch (err) {
     next(err);
@@ -477,10 +491,17 @@ const generateQr = async (req, res, next) => {
   try {
     const identifier = req.params.id;
     const { resolveEvidence } = require('../services/verificationService');
-    const evidence = await resolveEvidence(identifier);
+    const evidence = await resolveEvidence(identifier, req.user);
+
+    if (!evidence.publicToken) {
+      evidence.publicToken = crypto.randomBytes(16).toString('base64url');
+    }
+    // Regenerating QR moves a record to token links
+    evidence.legacyPublic = false;
+    await evidence.save();
 
     const publicBaseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
-    const targetUrl = `${publicBaseUrl}/verify.html?caseId=${encodeURIComponent(evidence.caseId)}`;
+    const targetUrl = `${publicBaseUrl}/verify.html?t=${encodeURIComponent(evidence.publicToken)}`;
 
     const [pngDataUrl, svg] = await Promise.all([
       QRCode.toDataURL(targetUrl, {
@@ -502,6 +523,7 @@ const generateQr = async (req, res, next) => {
       evidenceId: evidence.evidenceId,
       caseId: evidence.caseId,
       description: `Generated QR code for ${evidence.evidenceId} (Case ${evidence.caseId})`,
+      orgId: req.user.orgId,
       req
     });
 
@@ -535,7 +557,8 @@ const downloadEvidence = async (req, res, next) => {
       return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid evidence identifier' });
     }
 
-    const evidence = await Evidence.findOne(query).select('+storageKey');
+    const ScopedEvidence = scoped(Evidence, req.user);
+    const evidence = await ScopedEvidence.findOne(query).select('+storageKey');
     if (!evidence) {
       return res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Evidence not found' });
     }
@@ -585,5 +608,3 @@ module.exports = {
   generateQr,
   downloadEvidence
 };
-
-

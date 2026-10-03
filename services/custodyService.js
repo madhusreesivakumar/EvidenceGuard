@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const CustodyEvent = require('../models/CustodyEvent');
 const User = require('../models/User');
 const { logEvent } = require('./auditService');
+const { scoped } = require('./tenantScope');
 
 const GENESIS_PREV_HASH = '0000000000000000';
 const TRANSFER_EXPIRY_MS = 72 * 60 * 60 * 1000; // 72 hours
@@ -165,8 +166,10 @@ function deriveCustodyState(events = []) {
 /**
  * Validates the custody chain integrity and state machine transitions.
  */
-async function validateCustodyChain(evidenceId) {
-  const events = await CustodyEvent.find({ evidenceId }).sort({ seq: 1 }).lean();
+async function validateCustodyChain(evidenceId, userOrOrgId = 'default') {
+  const orgId = typeof userOrOrgId === 'object' ? (userOrOrgId.orgId || 'default') : (userOrOrgId || 'default');
+  const ScopedCustody = scoped(CustodyEvent, orgId);
+  const events = await ScopedCustody.find({ evidenceId }).sort({ seq: 1 }).lean();
   const issues = [];
 
   if (events.length === 0) {
@@ -382,8 +385,12 @@ async function recordCustodyEvent(params = {}) {
     throw err;
   }
 
+  const orgId = user?.orgId || 'default';
+  const ScopedCustody = scoped(CustodyEvent, orgId);
+  const ScopedUser = scoped(User, orgId);
+
   // Fetch all existing events for state machine and seq linkage
-  const existingEvents = await CustodyEvent.find({ evidenceId }).sort({ seq: 1 }).lean();
+  const existingEvents = await ScopedCustody.find({ evidenceId }).sort({ seq: 1 }).lean();
   const nextSeq = existingEvents.length + 1;
   const prevHash = existingEvents.length > 0
     ? existingEvents[existingEvents.length - 1].entryHash
@@ -538,7 +545,7 @@ async function recordCustodyEvent(params = {}) {
   let toUserName = '';
   let resolvedToUserId = null;
   if (toUserId) {
-    const toUser = await User.findById(toUserId).lean();
+    const toUser = await ScopedUser.findById(toUserId).lean();
     if (!toUser) {
       const err = new Error('Recipient user not found');
       err.status = 400;
@@ -561,6 +568,7 @@ async function recordCustodyEvent(params = {}) {
 
   const eventData = {
     custodyId,
+    orgId,
     evidenceId,
     seq: nextSeq,
     type,
@@ -585,7 +593,7 @@ async function recordCustodyEvent(params = {}) {
 
   let created;
   try {
-    created = await CustodyEvent.create(eventData);
+    created = await ScopedCustody.create(eventData);
   } catch (err) {
     if (err.code === 11000) {
       const conflictErr = new Error(`Concurrency conflict: a custody event at sequence ${nextSeq} was already recorded`);
@@ -603,6 +611,7 @@ async function recordCustodyEvent(params = {}) {
     action: auditAction,
     evidenceId,
     description: `Custody event [${type}] recorded (seq #${nextSeq}): ${reason.trim()}`,
+    orgId,
     req
   });
 

@@ -54,12 +54,14 @@ function computeAuditHash(entry = {}) {
 }
 
 /**
- * Validates the cryptographic integrity of the entire audit chain.
+ * Validates the cryptographic integrity of the entire audit chain per organization.
  * Checks contiguous sequence numbers, prevHash linkage, and deterministic entryHash.
  */
-async function validateAuditChain() {
+async function validateAuditChain(userOrOrgId = 'default') {
   const AuditLog = require('../models/AuditLog');
-  const entries = await AuditLog.find({ seq: { $ne: null } })
+  const { scoped } = require('./tenantScope');
+  const orgId = typeof userOrOrgId === 'object' ? (userOrOrgId.orgId || 'default') : (userOrOrgId || 'default');
+  const entries = await scoped(AuditLog, orgId).find({ seq: { $ne: null } })
     .sort({ seq: 1 })
     .lean();
 

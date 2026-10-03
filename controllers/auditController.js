@@ -5,6 +5,7 @@ const AuditLog = require('../models/AuditLog');
 const SystemStatus = require('../models/SystemStatus');
 const { computeAuditHash, validateAuditChain: runAuditValidation } = require('../services/auditHash');
 const { logEvent } = require('../services/auditService');
+const { scoped } = require('../services/tenantScope');
 
 const ALLOWED_ACTIONS = [
   'REGISTER', 'LOGIN', 'LOGOUT', 'UPLOAD', 'HASH_GENERATED',
@@ -13,7 +14,9 @@ const ALLOWED_ACTIONS = [
   'USER_DEACTIVATED', 'KEY_REGISTERED', 'KEY_REVOKED',
   'CUSTODY_EVENT', 'CUSTODY_TRANSFER',
   'NOTIFICATION_FAILED', 'PREFERENCES_CHANGED',
-  'FORENSICS_EXTRACTED'
+  'FORENSICS_EXTRACTED',
+  'CHAIN_ANCHORED', 'ANCHOR_FAILED', 'ANCHOR_VERIFIED',
+  'ORG_CREATED', 'ORG_STATUS_CHANGED', 'INVITATION_SENT', 'INVITATION_ACCEPTED'
 ];
 
 const ALLOWED_SORT_FIELDS = ['timestamp', 'action', 'userName', 'evidenceId', 'seq'];
@@ -42,6 +45,7 @@ const getAuditLogs = async (req, res, next) => {
       limit = 25
     } = req.query;
 
+    const ScopedAudit = scoped(AuditLog, req.user);
     const filter = {};
 
     // 1. Text Search Query 'q'
@@ -99,33 +103,34 @@ const getAuditLogs = async (req, res, next) => {
       if (typeof evidenceId !== 'string' || !/^EV-\d{4,}$/i.test(evidenceId.trim())) {
         return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid evidenceId format (expected EV-0000)' });
       }
-      filter.evidenceId = new RegExp('^' + escapeRegex(evidenceId.trim()) + '$', 'i');
+      filter.evidenceId = evidenceId.trim().toUpperCase();
     }
 
     // 5. Case ID filter
     if (caseId !== undefined) {
       if (typeof caseId !== 'string' || !/^EG-\d{4}-\d{4,}$/i.test(caseId.trim())) {
-        return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid caseId format (expected EG-YYYY-0000)' });
+        return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid caseId format (expected EG-YYYY-NNNN)' });
       }
-      filter.caseId = new RegExp('^' + escapeRegex(caseId.trim()) + '$', 'i');
+      filter.caseId = caseId.trim().toUpperCase();
     }
 
-    // 6. Date range filter
+    // 6. Date Range filter
     if (dateFrom !== undefined || dateTo !== undefined) {
       const dateFilter = {};
       if (dateFrom !== undefined) {
-        if (typeof dateFrom !== 'string' || isNaN(Date.parse(dateFrom))) {
+        const dFrom = new Date(dateFrom);
+        if (isNaN(dFrom.getTime())) {
           return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid dateFrom format' });
         }
-        dateFilter.$gte = new Date(dateFrom);
+        dateFilter.$gte = dFrom;
       }
       if (dateTo !== undefined) {
-        if (typeof dateTo !== 'string' || isNaN(Date.parse(dateTo))) {
+        const dTo = new Date(dateTo);
+        if (isNaN(dTo.getTime())) {
           return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid dateTo format' });
         }
-        const toDate = new Date(dateTo);
-        toDate.setUTCHours(23, 59, 59, 999);
-        dateFilter.$lte = toDate;
+        dTo.setUTCHours(23, 59, 59, 999);
+        dateFilter.$lte = dTo;
       }
       if (dateFilter.$gte && dateFilter.$lte && dateFilter.$gte > dateFilter.$lte) {
         return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'dateFrom cannot be after dateTo' });
@@ -141,15 +146,15 @@ const getAuditLogs = async (req, res, next) => {
     const skip = (pageNum - 1) * limitNum;
 
     const [total, docs] = await Promise.all([
-      AuditLog.countDocuments(filter),
-      AuditLog.find(filter)
+      ScopedAudit.countDocuments(filter),
+      ScopedAudit.find(filter)
         .sort({ [sortField]: sortDirection, _id: sortDirection })
         .skip(skip)
         .limit(limitNum)
         .lean()
     ]);
 
-    const isAdmin = req.user && req.user.role === 'ADMIN';
+    const isAdmin = req.user && ['ADMIN', 'ORG_ADMIN'].includes(req.user.role);
 
     const items = docs.map(doc => ({
       eventId: doc.eventId,
@@ -184,7 +189,8 @@ const getAuditLogs = async (req, res, next) => {
  */
 const getAuditFilters = async (req, res, next) => {
   try {
-    const rawUsers = await AuditLog.distinct('userName', { userName: { $ne: null, $nin: ['', 'System'] } });
+    const ScopedAudit = scoped(AuditLog, req.user);
+    const rawUsers = await ScopedAudit.distinct('userName', { userName: { $ne: null, $nin: ['', 'System'] } });
     const users = rawUsers
       .filter(Boolean)
       .map(u => String(u).trim())
@@ -205,37 +211,47 @@ const getAuditFilters = async (req, res, next) => {
 
 /**
  * POST /api/audit/validate
- * Authenticated + authorizeAction("validateAudit") (ADMIN only)
+ * Authenticated + authorizeAction("validateAudit") (ADMIN / ORG_ADMIN / AUDITOR)
  */
 const validateAuditChain = async (req, res, next) => {
   try {
-    const result = await runAuditValidation();
+    const orgId = req.user?.orgId || 'default';
+    const result = await runAuditValidation(orgId);
     const { valid, entriesChecked, message, firstBrokenSeq, validatedAt, head, issues } = result;
 
-    // Upsert into SystemStatus singleton
-    await SystemStatus.findOneAndUpdate(
-      { key: 'auditValidation' },
-      {
-        $set: {
-          value: {
-            valid,
-            entriesChecked,
-            message,
-            firstBrokenSeq,
-            validatedAt,
-            validatedByName: req.user.name || 'Admin'
-          },
-          updatedAt: new Date()
-        }
+    // Upsert into SystemStatus
+    const statusPayload = {
+      value: {
+        valid,
+        entriesChecked,
+        message,
+        firstBrokenSeq,
+        validatedAt,
+        validatedByName: req.user?.name || 'Admin',
+        orgId
       },
-      { upsert: true, returnDocument: 'after' }
-    );
+      updatedAt: new Date()
+    };
+
+    await Promise.all([
+      SystemStatus.findOneAndUpdate(
+        { key: `auditValidation_${orgId}` },
+        { $set: statusPayload },
+        { upsert: true, returnDocument: 'after' }
+      ),
+      SystemStatus.findOneAndUpdate(
+        { key: 'auditValidation' },
+        { $set: statusPayload },
+        { upsert: true, returnDocument: 'after' }
+      )
+    ]);
 
     // Audit the validation itself
     await logEvent({
       user: req.user,
       action: 'BLOCKCHAIN_VALIDATED',
       description: `Audit chain validated: ${valid ? 'VALID' : 'INVALID'} (${entriesChecked} entries)`,
+      orgId,
       req
     });
 
@@ -247,6 +263,7 @@ const validateAuditChain = async (req, res, next) => {
           issues,
           firstBrokenSeq,
           actorUser: req.user,
+          orgId,
           req
         });
       } catch (busErr) {
@@ -260,13 +277,13 @@ const validateAuditChain = async (req, res, next) => {
       entriesChecked,
       message,
       firstBrokenSeq,
-      issues,
+      validatedAt,
       head,
-      validatedAt
+      issues
     });
   } catch (err) {
     console.error('[AUDIT VALIDATE ERROR]', err);
-    return res.status(500).json({ success: false, code: 'CHAIN_VALIDATION_FAILED', message: 'Failed to validate audit chain' });
+    return res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'Failed to validate audit chain' });
   }
 };
 

@@ -1,13 +1,20 @@
+'use strict';
+
 const Block = require('../models/Block');
 const Evidence = require('../models/Evidence');
 const { computeBlockHash } = require('./chainHash');
+const { scoped } = require('./tenantScope');
 
-const validateChain = async () => {
+const validateChain = async (userOrOrgId = 'default') => {
+  const orgId = typeof userOrOrgId === 'object' ? (userOrOrgId.orgId || 'default') : (userOrOrgId || 'default');
+  const scopedBlock = scoped(Block, orgId);
+  const scopedEvidence = scoped(Evidence, orgId);
+
   const issues = [];
   let firstBrokenBlock = null;
   let blocksChecked = 0;
   let expectedBlockNumber = 0;
-  let previousHashState = "0000000000000000";
+  let previousHashState = '0000000000000000';
 
   const addIssue = (blockNumber, check, expected, actual) => {
     if (firstBrokenBlock === null) firstBrokenBlock = blockNumber;
@@ -16,7 +23,7 @@ const validateChain = async () => {
     }
   };
 
-  const cursor = Block.find().sort({ blockNumber: 1 }).cursor();
+  const cursor = scopedBlock.find({}).sort({ blockNumber: 1 }).cursor();
 
   for await (const block of cursor) {
     blocksChecked++;
@@ -31,8 +38,8 @@ const validateChain = async () => {
       break; 
     }
 
-    if (block.blockNumber === 0 && block.previousHash !== "0000000000000000") {
-      addIssue(block.blockNumber, 'Genesis Previous Hash', "0000000000000000", block.previousHash);
+    if (block.blockNumber === 0 && block.previousHash !== '0000000000000000') {
+      addIssue(block.blockNumber, 'Genesis Previous Hash', '0000000000000000', block.previousHash);
     }
 
     if (block.blockNumber > 0 && block.previousHash !== previousHashState) {
@@ -45,7 +52,7 @@ const validateChain = async () => {
     }
 
     if (block.evidenceId) {
-      const ev = await Evidence.findOne({ evidenceId: block.evidenceId });
+      const ev = await scopedEvidence.findOne({ evidenceId: block.evidenceId });
       if (ev && ev.hash !== block.evidenceHash) {
         addIssue(block.blockNumber, 'Evidence Hash Sync', ev.hash, block.evidenceHash);
       }
@@ -55,9 +62,9 @@ const validateChain = async () => {
     expectedBlockNumber++;
   }
 
-  // 6. every non-deleted Evidence record has a matching block
+  // Every non-deleted Evidence record in this org has a matching block
   if (firstBrokenBlock === null) {
-    const missingBlockEvidence = await Evidence.findOne({ isDeleted: false, blockNumber: null });
+    const missingBlockEvidence = await scopedEvidence.findOne({ isDeleted: false, blockNumber: null });
     if (missingBlockEvidence) {
       addIssue('N/A', 'Evidence Missing Block', 'Not Null', 'Null (Evidence ID: ' + missingBlockEvidence.evidenceId + ')');
     }
@@ -67,8 +74,9 @@ const validateChain = async () => {
   
   return {
     valid,
+    orgId,
     blocksChecked,
-    message: valid ? "BLOCKCHAIN INTEGRITY: VALID" : "BLOCKCHAIN INTEGRITY: INVALID",
+    message: valid ? 'BLOCKCHAIN INTEGRITY: VALID' : 'BLOCKCHAIN INTEGRITY: INVALID',
     firstBrokenBlock,
     issues
   };

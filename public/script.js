@@ -526,7 +526,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const publicPages = ['index.html', 'login.html', 'register.html', 'about.html', ''];
   const currentPath = location.pathname.split('/').pop() || 'index.html';
-  const isPublicVerify = currentPath === 'verify.html' && new URLSearchParams(window.location.search).has('caseId');
+  const searchParams = new URLSearchParams(window.location.search);
+  const isPublicVerify = currentPath === 'verify.html' && (searchParams.has('caseId') || searchParams.has('t'));
   
   if (!publicPages.includes(currentPath) && !isPublicVerify) {
     EG.auth.requireLogin().then(user => {

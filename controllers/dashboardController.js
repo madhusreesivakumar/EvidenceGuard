@@ -1,3 +1,5 @@
+'use strict';
+
 const Evidence = require('../models/Evidence');
 const Verification = require('../models/Verification');
 const User = require('../models/User');
@@ -5,13 +7,20 @@ const Block = require('../models/Block');
 const AuditLog = require('../models/AuditLog');
 const SystemStatus = require('../models/SystemStatus');
 const { can } = require('../config/permissions');
+const { scoped } = require('../services/tenantScope');
 
 const getDashboardStats = async (req, res, next) => {
   try {
     const role = req.user.role;
-    const isAdmin = role === 'ADMIN';
+    const isAdmin = ['ADMIN', 'ORG_ADMIN'].includes(role);
     const canViewAudit = can(role, 'viewAudit');
     const canViewBlockchain = can(role, 'viewBlockchain');
+
+    const ScopedEvidence = scoped(Evidence, req.user);
+    const ScopedVerification = scoped(Verification, req.user);
+    const ScopedUser = scoped(User, req.user);
+    const ScopedBlock = scoped(Block, req.user);
+    const ScopedAuditLog = scoped(AuditLog, req.user);
 
     // Build 7 calendar days (YYYY-MM-DD) ending today
     const days = [];
@@ -27,16 +36,16 @@ const getDashboardStats = async (req, res, next) => {
     // Queries to run in parallel
     const queries = [
       // 0: Evidence counts
-      Evidence.countDocuments({ isDeleted: false }),
-      Evidence.countDocuments({ isDeleted: false, status: 'Verified' }),
-      Evidence.countDocuments({ isDeleted: false, status: 'Pending' }),
-      Evidence.countDocuments({ isDeleted: false, status: 'Tampered' }),
+      ScopedEvidence.countDocuments({ isDeleted: false }),
+      ScopedEvidence.countDocuments({ isDeleted: false, status: 'Verified' }),
+      ScopedEvidence.countDocuments({ isDeleted: false, status: 'Pending' }),
+      ScopedEvidence.countDocuments({ isDeleted: false, status: 'Tampered' }),
 
       // 4: Verification counts & 7-day aggregation
-      Verification.countDocuments(),
-      Verification.countDocuments({ result: 'VERIFIED' }),
-      Verification.countDocuments({ result: 'TAMPERED' }),
-      Verification.aggregate([
+      ScopedVerification.countDocuments(),
+      ScopedVerification.countDocuments({ result: 'VERIFIED' }),
+      ScopedVerification.countDocuments({ result: 'TAMPERED' }),
+      ScopedVerification.aggregate([
         { $match: { verifiedAt: { $gte: sevenDaysAgo } } },
         {
           $group: {
@@ -50,30 +59,30 @@ const getDashboardStats = async (req, res, next) => {
       ]),
 
       // 8: Recent Evidence (5 latest non-deleted)
-      Evidence.find({ isDeleted: false })
+      ScopedEvidence.find({ isDeleted: false })
         .sort({ createdAt: -1 })
         .limit(5)
         .select('evidenceId caseId name type status createdAt isDemo -_id')
         .lean(),
 
-      // 9: Users count (ADMIN only)
-      isAdmin ? User.countDocuments() : Promise.resolve(null),
+      // 9: Users count (ADMIN / ORG_ADMIN only)
+      isAdmin ? ScopedUser.countDocuments() : Promise.resolve(null),
 
       // 10: Audit count (ADMIN, INVESTIGATOR)
-      canViewAudit ? AuditLog.countDocuments() : Promise.resolve(null),
+      canViewAudit ? ScopedAuditLog.countDocuments() : Promise.resolve(null),
 
       // 11: Recent Activity (8 latest audit events, NO ipAddress)
-      canViewAudit ? AuditLog.find()
+      canViewAudit ? ScopedAuditLog.find()
         .sort({ timestamp: -1 })
         .limit(8)
         .select('action userName role description timestamp -_id')
         .lean() : Promise.resolve(null),
 
       // 12: Blocks count (roles with viewBlockchain)
-      canViewBlockchain ? Block.countDocuments() : Promise.resolve(null),
+      canViewBlockchain ? ScopedBlock.countDocuments() : Promise.resolve(null),
 
       // 13: System status validation cache (roles with viewBlockchain)
-      canViewBlockchain ? SystemStatus.findOne({ key: 'chainValidation' }).lean() : Promise.resolve(null)
+      canViewBlockchain ? SystemStatus.findOne({ key: `chainValidation_${req.user.orgId || 'default'}` }).lean() : Promise.resolve(null)
     ];
 
     const [

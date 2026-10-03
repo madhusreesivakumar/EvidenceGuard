@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const evidenceSchema = new mongoose.Schema({
-  evidenceId: { type: String, required: true, unique: true },
+  evidenceId: { type: String, required: true },
+  orgId: { type: String, required: true, default: 'default', index: true },
   caseId: { type: String, required: true, index: true },
   name: String,
   type: { type: String, enum: ['Image', 'Video', 'Audio', 'Document', 'PDF', 'Other'] },
@@ -9,6 +10,8 @@ const evidenceSchema = new mongoose.Schema({
   fileName: String,
   fileSize: Number,
   mimeType: String,
+  publicToken: { type: String },
+  legacyPublic: { type: Boolean, default: false },
   storageKey: { type: String, select: false },
   storage: {
     driver: { type: String, default: 'local' },
@@ -46,9 +49,12 @@ const evidenceSchema = new mongoose.Schema({
   timestamps: { createdAt: 'createdAt', updatedAt: false }
 });
 
-evidenceSchema.index({ hash: 1 }, { unique: true, partialFilterExpression: { isDeleted: false } });
-evidenceSchema.index({ createdAt: -1 });
-evidenceSchema.index({ status: 1, createdAt: -1 });
-evidenceSchema.index({ type: 1, createdAt: -1 });
+evidenceSchema.index({ orgId: 1, hash: 1 }, { unique: true, partialFilterExpression: { isDeleted: false } });
+evidenceSchema.index({ orgId: 1, evidenceId: 1 }, { unique: true });
+evidenceSchema.index({ publicToken: 1 }, { unique: true, sparse: true });
+evidenceSchema.index({ orgId: 1, caseId: 1 });
+evidenceSchema.index({ orgId: 1, createdAt: -1 });
+evidenceSchema.index({ orgId: 1, status: 1, createdAt: -1 });
+evidenceSchema.index({ orgId: 1, type: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Evidence', evidenceSchema);

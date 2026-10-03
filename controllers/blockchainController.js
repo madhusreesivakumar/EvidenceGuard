@@ -1,8 +1,11 @@
+'use strict';
+
 const Block = require('../models/Block');
 const Evidence = require('../models/Evidence');
 const SystemStatus = require('../models/SystemStatus');
 const chainValidator = require('../services/chainValidator');
 const { logEvent } = require('../services/auditService');
+const { scoped } = require('../services/tenantScope');
 
 const getBlocks = async (req, res, next) => {
   try {
@@ -11,17 +14,20 @@ const getBlocks = async (req, res, next) => {
     const order = req.query.order === 'desc' ? -1 : 1;
     const skip = (page - 1) * limit;
 
-    const total = await Block.countDocuments();
-    const blocks = await Block.find()
+    const ScopedBlock = scoped(Block, req.user);
+    const ScopedEvidence = scoped(Evidence, req.user);
+
+    const total = await ScopedBlock.countDocuments();
+    const blocks = await ScopedBlock.find()
       .sort({ blockNumber: order })
       .skip(skip)
       .limit(limit)
       .lean();
 
-    const head = await Block.findOne().sort({ blockNumber: -1 }).lean();
+    const head = await ScopedBlock.findOne().sort({ blockNumber: -1 }).lean();
 
     const evidenceIds = blocks.map(b => b.evidenceId).filter(Boolean);
-    const deletedEvidence = await Evidence.find({ evidenceId: { $in: evidenceIds }, isDeleted: true }).select('evidenceId').lean();
+    const deletedEvidence = await ScopedEvidence.find({ evidenceId: { $in: evidenceIds }, isDeleted: true }).select('evidenceId').lean();
     const deletedSet = new Set(deletedEvidence.map(e => e.evidenceId));
 
     const blocksWithFlag = blocks.map(b => ({
@@ -46,18 +52,20 @@ const getBlocks = async (req, res, next) => {
 
 const validateBlockchain = async (req, res, next) => {
   try {
-    const result = await chainValidator.validateChain();
+    const orgId = req.user?.orgId || 'default';
+    const result = await chainValidator.validateChain(orgId);
     const validatedAt = new Date().toISOString();
     
     await logEvent({
       action: 'BLOCKCHAIN_VALIDATED',
       user: req.user,
       description: `Blockchain validation: ${result.message} (${result.blocksChecked} blocks checked)`,
+      orgId,
       req
     });
 
     await SystemStatus.findOneAndUpdate(
-      { key: 'chainValidation' },
+      { key: `chainValidation_${orgId}` },
       {
         $set: {
           value: {
@@ -81,6 +89,7 @@ const validateBlockchain = async (req, res, next) => {
           issues: result.issues,
           firstBrokenBlock: result.firstBrokenBlock,
           actorUser: req.user,
+          orgId,
           req
         });
       } catch (busErr) {
@@ -108,4 +117,3 @@ module.exports = {
   getBlocks,
   validateBlockchain
 };
-

@@ -14,3 +14,7 @@ Thumbs.db
 blockchain/cache/
 blockchain/artifacts/
 blockchain/typechain-types/
+
+# Database Migration Backups
+backups/
+backups/*

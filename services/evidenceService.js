@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Evidence = require('../models/Evidence');
 const hashService = require('./hashService');
@@ -8,6 +9,7 @@ const idService = require('./idService');
 const storageService = require('../storage/storageService');
 const { logEvent } = require('./auditService');
 const { appendBlock } = require('./chainService');
+const { scoped } = require('./tenantScope');
 const AppError = require('../utils/AppError');
 
 /**
@@ -38,8 +40,11 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
     throw err;
   }
 
-  // Duplicate Check
-  const existing = await Evidence.findOne({ hash: serverHash, isDeleted: false });
+  const orgId = user?.orgId || 'default';
+  const ScopedEvidence = scoped(Evidence, orgId);
+
+  // Duplicate Check per organization
+  const existing = await ScopedEvidence.findOne({ hash: serverHash, isDeleted: false });
   if (existing) {
     try { fs.unlinkSync(tempPath); } catch (_) {}
     await logEvent({
@@ -48,6 +53,7 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
       evidenceId: existing.evidenceId,
       caseId: existing.caseId,
       description: `Duplicate upload rejected (matches ${existing.evidenceId})`,
+      orgId,
       req
     });
     const dupErr = new AppError('DUPLICATE EVIDENCE DETECTED', 'DUPLICATE_EVIDENCE', 409);
@@ -61,8 +67,8 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
 
   let evidenceId, caseId;
   try {
-    evidenceId = await idService.nextEvidenceId();
-    caseId = await idService.nextCaseId();
+    evidenceId = await idService.nextEvidenceId(orgId);
+    caseId = await idService.nextCaseId(orgId);
   } catch (err) {
     try { fs.unlinkSync(tempPath); } catch (_) {}
     throw new AppError('Failed to generate IDs', 'SERVER_ERROR', 500);
@@ -79,9 +85,11 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
   }
 
   const safeFileName = storageService.sanitizeFilename(file.originalname || 'evidence.bin');
+  const publicToken = crypto.randomBytes(16).toString('base64url');
 
   const evidenceData = {
     evidenceId,
+    orgId,
     caseId,
     name: name || 'Untitled Evidence',
     type: type || 'Other',
@@ -89,6 +97,8 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
     fileName: safeFileName,
     fileSize: file.size,
     mimeType: file.mimetype || 'application/octet-stream',
+    publicToken,
+    legacyPublic: false,
     hash: serverHash,
     storageKey,
     status: 'Pending',
@@ -104,22 +114,22 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
     if (global.TRANSACTIONS_SUPPORTED) {
       const session = await mongoose.startSession();
       await session.withTransaction(async () => {
-        evidenceDoc = new Evidence(evidenceData);
-        blockDoc = await appendBlock({ evidence: evidenceDoc, session });
+        evidenceDoc = new ScopedEvidence(evidenceData);
+        blockDoc = await appendBlock({ evidence: evidenceDoc, orgId, session });
         evidenceDoc.blockNumber = blockDoc.blockNumber;
         await evidenceDoc.save({ session });
       });
       session.endSession();
     } else {
-      evidenceDoc = new Evidence(evidenceData);
+      evidenceDoc = new ScopedEvidence(evidenceData);
       await evidenceDoc.save();
 
       try {
-        blockDoc = await appendBlock({ evidence: evidenceDoc, session: null });
+        blockDoc = await appendBlock({ evidence: evidenceDoc, orgId, session: null });
         evidenceDoc.blockNumber = blockDoc.blockNumber;
         await evidenceDoc.save();
       } catch (blockErr) {
-        await Evidence.deleteOne({ _id: evidenceDoc._id });
+        await ScopedEvidence.deleteOne({ _id: evidenceDoc._id });
         throw blockErr;
       }
     }
@@ -130,6 +140,7 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
       evidenceId,
       caseId,
       description: `Hash generated for evidence ${safeFileName}: ${serverHash}`,
+      orgId,
       req
     });
 
@@ -139,6 +150,7 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
       evidenceId,
       caseId,
       description: `Uploaded evidence ${evidenceId}`,
+      orgId,
       req
     });
 
@@ -148,17 +160,13 @@ async function createEvidenceRecord({ file, body = {}, user, req, ip }) {
       evidenceId,
       caseId,
       description: `Block #${blockDoc.blockNumber} created for ${evidenceId}`,
+      orgId,
       req
     });
 
-    const evidenceObj = evidenceDoc.toObject();
-    delete evidenceObj.storageKey;
-    evidenceObj.blockNumber = blockDoc.blockNumber;
-    evidenceObj.blockHash = blockDoc.currentHash;
-
-    return { evidence: evidenceObj, evidenceDoc, blockDoc };
+    return evidenceDoc;
   } catch (err) {
-    await storageService.remove(storageKey);
+    try { await storageService.remove(storageKey); } catch (_) {}
     throw err;
   }
 }

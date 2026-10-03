@@ -6,7 +6,12 @@ const notificationSchema = new mongoose.Schema({
   notificationId: {
     type: String,
     required: true,
-    unique: true,
+    index: true
+  },
+  orgId: {
+    type: String,
+    required: true,
+    default: 'default',
     index: true
   },
   userId: {
@@ -103,12 +108,13 @@ const notificationSchema = new mongoose.Schema({
 });
 
 // Compound unique index for strict deduplication & coalescing
+notificationSchema.index({ orgId: 1, notificationId: 1 }, { unique: true });
 notificationSchema.index({ dedupeKey: 1, userId: 1, channel: 1 }, { unique: true });
 
 // Compound index for high-efficiency worker polling & lease claiming
-notificationSchema.index({ status: 1, nextAttemptAt: 1, leaseUntil: 1 });
+notificationSchema.index({ orgId: 1, status: 1, nextAttemptAt: 1, leaseUntil: 1 });
 
 // Compound index for user notification center queries
-notificationSchema.index({ userId: 1, channel: 1, readAt: 1, createdAt: -1 });
+notificationSchema.index({ orgId: 1, userId: 1, channel: 1, readAt: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

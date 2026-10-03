@@ -3,6 +3,7 @@
 const AuditLog = require('../models/AuditLog');
 const { nextAuditId } = require('./idService');
 const { computeAuditHash } = require('./auditHash');
+const { scoped } = require('./tenantScope');
 
 // In-process async queue ensuring sequential writes per process
 let queuePromise = Promise.resolve();
@@ -13,26 +14,29 @@ const enqueue = (fn) => {
   return resultPromise;
 };
 
-const logEvent = async ({ user, action, evidenceId, caseId, description, req }) => {
+const logEvent = async ({ user, action, evidenceId, caseId, description, req, orgId: explicitOrgId }) => {
   try {
     let ipAddress = 'unknown';
     if (req) {
       ipAddress = req.ip || req.connection?.remoteAddress || 'unknown';
     }
 
+    const orgId = explicitOrgId || (user && user.orgId) || (req && req.user && req.user.orgId) || 'default';
     const userId = user ? (user._id ? String(user._id) : (user.userId || user.id ? String(user.userId || user.id) : null)) : null;
     const userName = user ? (user.name || 'System') : 'System';
     const role = user ? (user.role || 'SYSTEM') : 'SYSTEM';
+
+    const ScopedAudit = scoped(AuditLog, orgId);
 
     return await enqueue(async () => {
       const maxRetries = 8;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          const latest = await AuditLog.findOne({ seq: { $ne: null } }).sort({ seq: -1 });
+          const latest = await ScopedAudit.findOne({ seq: { $ne: null } }).sort({ seq: -1 });
           const seq = (latest && typeof latest.seq === 'number') ? latest.seq + 1 : 1;
           const prevHash = (latest && latest.entryHash) ? latest.entryHash : '0000000000000000';
           
-          const eventId = await nextAuditId();
+          const eventId = await nextAuditId(orgId);
           const timestamp = new Date();
 
           const entryHash = computeAuditHash({
@@ -50,8 +54,9 @@ const logEvent = async ({ user, action, evidenceId, caseId, description, req }) 
             prevHash
           });
 
-          const logEntry = new AuditLog({
+          const logEntry = new ScopedAudit({
             eventId,
+            orgId,
             seq,
             prevHash,
             entryHash,

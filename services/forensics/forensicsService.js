@@ -15,6 +15,7 @@ const crypto = require('crypto');
 const ForensicReport = require('../../models/ForensicReport');
 const { logEvent } = require('../auditService');
 const { evaluateAnomalies, DISCLAIMER } = require('./anomalyEngine');
+const { scoped } = require('../tenantScope');
 
 const WORKER_SCRIPT = path.join(__dirname, 'extractWorker.js');
 const EXTRACTION_TIMEOUT_MS = 20000; // 20 seconds
@@ -183,9 +184,11 @@ function computeMetadataDiff(prevMeta = {}, newMeta = {}) {
  */
 async function processForensicsForEvidence(evidence, filePath, options = {}) {
   const { isRerun = false, actorUser = null, req = null, customTimeout = EXTRACTION_TIMEOUT_MS } = options;
+  const orgId = evidence.orgId || actorUser?.orgId || 'default';
+  const ScopedReport = scoped(ForensicReport, orgId);
 
   // 1. Query latest report version
-  const latestReport = await ForensicReport.findOne({ evidenceId: evidence.evidenceId })
+  const latestReport = await ScopedReport.findOne({ evidenceId: evidence.evidenceId })
     .sort({ version: -1 })
     .lean();
 
@@ -219,6 +222,7 @@ async function processForensicsForEvidence(evidence, filePath, options = {}) {
 
   const reportData = {
     evidenceId: evidence.evidenceId,
+    orgId,
     version: nextVersion,
     extractorVersion: '1.0.0',
     extractedAt: new Date(),
@@ -236,16 +240,17 @@ async function processForensicsForEvidence(evidence, filePath, options = {}) {
     diffFromPrevious
   };
 
-  const savedReport = await ForensicReport.create(reportData);
+  const savedReport = await ScopedReport.create(reportData);
 
   // 3. Log audit event
   try {
     await logEvent({
-      user: actorUser || { name: 'Forensic System', role: 'SYSTEM' },
+      user: actorUser || { name: 'Forensic System', role: 'SYSTEM', orgId },
       action: 'FORENSICS_EXTRACTED',
       evidenceId: evidence.evidenceId,
       caseId: evidence.caseId,
       description: `Forensics extraction (version ${nextVersion}) status: ${outcome.status}${outcome.error ? ' - ' + outcome.error : ''}`,
+      orgId,
       req
     });
   } catch (auditErr) {

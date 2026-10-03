@@ -1,15 +1,17 @@
+'use strict';
+
 const crypto = require('crypto');
 const Evidence = require('../models/Evidence');
 const Block = require('../models/Block');
+const Counter = require('../models/Counter');
+const Verification = require('../models/Verification');
+const { scoped, unscoped } = require('./tenantScope');
+const { logEvent } = require('./auditService');
+const { sha256Stream } = require('./hashService');
+const { getNextSequence } = require('./idService');
+const AppError = require('../utils/AppError');
 
-const resolveEvidence = async (identifier) => {
-  if (!identifier || typeof identifier !== 'string') {
-    const error = new Error('Invalid identifier format');
-    error.status = 400;
-    error.code = 'INVALID_ID';
-    throw error;
-  }
-
+const resolveEvidence = async (identifier, userOrOrgId = null) => {
   const isEvId = /^EV-\d{4}$/.test(identifier);
   const isCaseId = /^EG-\d{4}-\d{4}$/.test(identifier);
 
@@ -20,14 +22,15 @@ const resolveEvidence = async (identifier) => {
     throw error;
   }
 
-  let query = { isDeleted: false };
+  const query = { isDeleted: false };
   if (isEvId) {
     query.evidenceId = identifier;
   } else {
     query.caseId = identifier;
   }
 
-  const ev = await Evidence.findOne(query);
+  const EvidenceModel = userOrOrgId ? scoped(Evidence, userOrOrgId) : unscoped(Evidence);
+  const ev = await EvidenceModel.findOne(query);
   if (!ev) {
     const error = new Error('Evidence not found');
     error.status = 404;
@@ -62,7 +65,8 @@ const compareHashes = (originalHash, submittedHash) => {
 const checkChainConsistency = async (evidence) => {
   if (evidence.blockNumber == null) return false;
 
-  const block = await Block.findOne({ blockNumber: evidence.blockNumber });
+  const orgId = evidence.orgId || 'default';
+  const block = await scoped(Block, orgId).findOne({ blockNumber: evidence.blockNumber });
   if (!block) return false;
 
   if (block.evidenceId !== evidence.evidenceId) return false;
@@ -71,14 +75,9 @@ const checkChainConsistency = async (evidence) => {
   return true;
 };
 
-const Counter = require('../models/Counter');
-const Verification = require('../models/Verification');
-const { logEvent } = require('./auditService');
-const { sha256Stream } = require('./hashService');
-const AppError = require('../utils/AppError');
-
 const executeVerification = async ({ identifier, filePath, originalname, fileSize, clientHash, user, req, ip }) => {
-  const evidence = await resolveEvidence(identifier);
+  const orgId = user?.orgId || 'default';
+  const evidence = await resolveEvidence(identifier, orgId);
 
   let serverHash;
   try {
@@ -104,19 +103,17 @@ const executeVerification = async ({ identifier, filePath, originalname, fileSiz
   const resultEnum = isMatch ? 'VERIFIED' : 'TAMPERED';
   const chainConsistent = await checkChainConsistency(evidence);
 
-  const counter = await Counter.findByIdAndUpdate(
-    { _id: 'verificationId' },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true }
-  );
-  const verId = `VER-${String(counter.seq).padStart(6, '0')}`;
+  const seq = await getNextSequence('verificationId', orgId);
+  const verId = `VER-${String(seq).padStart(6, '0')}`;
 
   const userName = user ? (user.name || 'System') : 'System';
   const userId = user ? (user._id || user.id) : null;
   const clientIp = ip || (req ? (req.ip || req.connection?.remoteAddress) : '127.0.0.1');
 
-  const verification = new Verification({
+  const ScopedVerification = scoped(Verification, orgId);
+  const verification = new ScopedVerification({
     verificationId: verId,
+    orgId,
     evidenceId: evidence.evidenceId,
     caseId: evidence.caseId,
     originalHash: evidence.hash,
@@ -133,7 +130,8 @@ const executeVerification = async ({ identifier, filePath, originalname, fileSiz
 
   await verification.save();
 
-  await Evidence.findOneAndUpdate(
+  const ScopedEvidence = scoped(Evidence, orgId);
+  await ScopedEvidence.findOneAndUpdate(
     { evidenceId: evidence.evidenceId },
     {
       $set: {
@@ -144,38 +142,44 @@ const executeVerification = async ({ identifier, filePath, originalname, fileSiz
   );
 
   await logEvent({
-    action: 'VERIFY',
-    user,
+    action: resultEnum === 'VERIFIED' ? 'VERIFY' : 'TAMPER_DETECTED',
+    user: user || { _id: userId, name: userName, role: user?.role || 'SYSTEM', orgId },
     evidenceId: evidence.evidenceId,
     caseId: evidence.caseId,
-    description: `Verification result: ${resultEnum} for ${evidence.evidenceId}`,
+    description: `Evidence ${evidence.evidenceId} verification completed: ${resultEnum} (Chain: ${chainConsistent ? 'Consistent' : 'Broken'})`,
+    orgId,
     req
   });
 
-  if (resultEnum === 'TAMPERED') {
-    await logEvent({
-      action: 'TAMPER_DETECTED',
-      user,
-      evidenceId: evidence.evidenceId,
-      caseId: evidence.caseId,
-      description: `Tamper detected on ${evidence.evidenceId}. Orig: ${evidence.hash.substring(0, 12)} Sub: ${serverHash.substring(0, 12)}`,
-      req
-    });
+  if (process.env.FEATURE_NOTIFICATIONS === 'true') {
+    try {
+      const { emitNotificationEvent } = require('./notificationDispatcher');
+      emitNotificationEvent({
+        action: resultEnum === 'VERIFIED' ? 'VERIFY' : 'TAMPER_DETECTED',
+        user: user || { _id: userId, name: userName, role: user?.role || 'SYSTEM', orgId },
+        evidenceId: evidence.evidenceId,
+        caseId: evidence.caseId,
+        result: resultEnum,
+        chainConsistent,
+        orgId
+      });
+    } catch (e) {
+      // Non-blocking
+    }
   }
 
   return {
-    success: true,
-    result: resultEnum,
-    message: resultEnum === 'VERIFIED' ? 'Evidence integrity confirmed.' : 'Evidence hash does not match the registered hash.',
+    verificationId: verId,
     evidenceId: evidence.evidenceId,
     caseId: evidence.caseId,
     originalHash: evidence.hash,
-    currentHash: serverHash,
+    submittedHash: serverHash,
+    result: resultEnum,
     chainConsistent,
-    verificationId: verId,
-    verifiedAt: verification.verifiedAt,
-    verifiedBy: userName,
-    isDemo: evidence.isDemo || false
+    verifiedAt: verification.verifiedAt || new Date(),
+    verifiedByName: userName,
+    submittedFileName: originalname || 'verified_file.bin',
+    submittedFileSize: fileSize || 0
   };
 };
 

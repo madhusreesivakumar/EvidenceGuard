@@ -1011,14 +1011,16 @@ function initVerify() {
 
   // Prefill / Public routing
   const params = new URLSearchParams(window.location.search);
-  const isCaseMode = params.has('caseId');
+  const tokenParam = params.get('t');
   const caseIdParam = params.get('caseId');
+  const publicQuery = tokenParam || caseIdParam;
+  const isCaseMode = Boolean(publicQuery);
 
   if (isCaseMode) {
     // Public mode
     (async () => {
       try {
-        const pubRes = await fetch(`/api/public/verify/${encodeURIComponent(caseIdParam)}`, {
+        const pubRes = await fetch(`/api/public/verify/${encodeURIComponent(publicQuery)}`, {
           headers: { 'Accept': 'application/json' }
         });
 
