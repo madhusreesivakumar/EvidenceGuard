@@ -38,7 +38,8 @@ const TESTS = [
   { name: 'keys',           script: 'scripts/test-keys.js',           args: [] },
   { name: 'custody',        script: 'scripts/test-custody.js',        args: [] },
   { name: 'custody-ui',     script: 'scripts/test-custody-ui.js',     args: [] },
-  { name: 'forensics-14a',  script: 'scripts/test-forensics-14a.js',  args: [] }
+  { name: 'forensics-14a',  script: 'scripts/test-forensics-14a.js',  args: [] },
+  { name: 'forensics-14b',  script: 'scripts/test-forensics-14b.js',  args: [] }
 ];
 
 // Helper to extract database name from MongoDB URI

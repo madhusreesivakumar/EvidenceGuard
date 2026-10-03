@@ -14,6 +14,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const ForensicReport = require('../../models/ForensicReport');
 const { logEvent } = require('../auditService');
+const { evaluateAnomalies, DISCLAIMER } = require('./anomalyEngine');
 
 const WORKER_SCRIPT = path.join(__dirname, 'extractWorker.js');
 const EXTRACTION_TIMEOUT_MS = 20000; // 20 seconds
@@ -208,6 +209,14 @@ async function processForensicsForEvidence(evidence, filePath, options = {}) {
     }
   }
 
+  let anomalies = [];
+  if (outcome.status === 'COMPLETED' || outcome.fileSignature) {
+    anomalies = evaluateAnomalies(outcome.metadata || {}, outcome.fileSignature || {}, {
+      evidence,
+      diffFromPrevious
+    });
+  }
+
   const reportData = {
     evidenceId: evidence.evidenceId,
     version: nextVersion,
@@ -219,7 +228,8 @@ async function processForensicsForEvidence(evidence, filePath, options = {}) {
       match: false
     },
     metadata: outcome.metadata || {},
-    anomalies: [], // Part 14B anomaly engine populates this
+    anomalies,
+    disclaimer: DISCLAIMER,
     metadataHash,
     status: outcome.status,
     error: outcome.error || null,

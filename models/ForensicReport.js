@@ -70,6 +70,10 @@ const forensicReportSchema = new mongoose.Schema({
   diffFromPrevious: {
     type: mongoose.Schema.Types.Mixed,
     default: null
+  },
+  disclaimer: {
+    type: String,
+    default: 'These are indicators for examiner review. Metadata is easy to edit, and the absence of flags proves nothing.'
   }
 }, {
   timestamps: false

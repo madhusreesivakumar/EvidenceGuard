@@ -273,6 +273,16 @@ function extractPdfMetadata(filePath) {
     const modDateMatch = content.match(/\/ModDate\s*\(([^)]+)\)/);
     if (modDateMatch) info.modDate = modDateMatch[1];
 
+    let trailingBytesCount = 0;
+    const lastEofIndex = content.lastIndexOf('%%EOF');
+    if (lastEofIndex !== -1) {
+      const trailing = content.substring(lastEofIndex + 5);
+      const cleaned = trailing.replace(/[\r\n\s\x00]/g, '');
+      if (cleaned.length > 0) {
+        trailingBytesCount = trailing.length;
+      }
+    }
+
     return {
       pdfVersion: content.substring(5, 8),
       pageCount,
@@ -282,6 +292,7 @@ function extractPdfMetadata(filePath) {
       hasLaunchActions,
       eofMarkerCount: eofCount,
       hasIncrementalUpdates: eofCount > 1,
+      trailingBytesCount,
       info
     };
   } catch (_) {
@@ -476,10 +487,41 @@ async function main() {
       specificMetadata = extractTextMetadata(filePath);
     }
 
+    // Trailing bytes detection for image files (JPEG EOI, PNG IEND)
+    let trailingBytesCount = (specificMetadata && typeof specificMetadata.trailingBytesCount === 'number')
+      ? specificMetadata.trailingBytesCount
+      : 0;
+
+    if (trailingBytesCount === 0) {
+      try {
+        const raw = fs.readFileSync(filePath);
+        if (fileSignature.detectedExt === 'jpg' || fileSignature.detectedExt === 'jpeg') {
+          const eoiMarker = Buffer.from([0xFF, 0xD9]);
+          const lastEoi = raw.lastIndexOf(eoiMarker);
+          if (lastEoi !== -1 && lastEoi + 2 < raw.length) {
+            const trailing = raw.slice(lastEoi + 2);
+            if (trailing.some(b => b !== 0x00 && b !== 0x0A && b !== 0x0D)) {
+              trailingBytesCount = trailing.length;
+            }
+          }
+        } else if (fileSignature.detectedExt === 'png') {
+          const iendMarker = Buffer.from([0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82]);
+          const lastIend = raw.lastIndexOf(iendMarker);
+          if (lastIend !== -1 && lastIend + 8 < raw.length) {
+            const trailing = raw.slice(lastIend + 8);
+            if (trailing.some(b => b !== 0x00 && b !== 0x0A && b !== 0x0D)) {
+              trailingBytesCount = trailing.length;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     const aggregated = {
       fileSize: stats.size,
       fileCreatedAt: stats.birthtime,
       fileModifiedAt: stats.mtime,
+      trailingBytesCount,
       ...(specificMetadata || {})
     };
 

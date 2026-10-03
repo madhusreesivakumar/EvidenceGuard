@@ -13,6 +13,7 @@ const {
   processForensicsForEvidence,
   projectReportForRole
 } = require('../services/forensics/forensicsService');
+const { DISCLAIMER } = require('../services/forensics/anomalyEngine');
 
 /**
  * Helper to resolve evidence by evidenceId or _id
@@ -61,6 +62,7 @@ async function rerunForensics(req, res, next) {
     return res.status(200).json({
       success: true,
       message: 'Forensic re-run completed',
+      disclaimer: DISCLAIMER,
       report: projected
     });
   } catch (err) {
@@ -108,6 +110,7 @@ async function getForensicsReport(req, res, next) {
 
     return res.status(200).json({
       success: true,
+      disclaimer: DISCLAIMER,
       report: projected
     });
   } catch (err) {
