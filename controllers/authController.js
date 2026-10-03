@@ -95,7 +95,7 @@ exports.login = async (req, res, next) => {
     user.lastLoginAt = new Date();
     await user.save();
 
-    const token = generateToken(user._id, user.role);
+    const token = await generateToken(user._id, user.role);
 
     res.cookie('token', token, {
       httpOnly: true,

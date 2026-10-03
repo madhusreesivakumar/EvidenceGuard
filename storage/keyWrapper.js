@@ -2,19 +2,27 @@
 
 /**
  * storage/keyWrapper.js
- * Sprint 11A – Envelope Encryption Master Key Wrapper (KeyWrapper Interface)
+ * Sprint 16B – Envelope Encryption Key Wrapper with KMS Integration
  *
- * Wraps and unwraps 256-bit Data Encryption Keys (DEKs) using the 256-bit master key
- * specified via STORAGE_MASTER_KEY (base64 encoded).
+ * Wraps and unwraps 256-bit Data Encryption Keys (DEKs).
+ *
+ * Modes:
+ *  - KMS mode  (KMS_PROVIDER != 'local' OR STORAGE_USE_KMS=true):
+ *      Uses services/kms KeyProvider.wrap() / .unwrap() with contextual AAD
+ *      (evidenceId, orgId) bound as Additional Authenticated Data.
+ *  - Legacy mode (backwards-compatible):
+ *      Direct AES-256-GCM with STORAGE_MASTER_KEY.
+ *      Still used in dev and when upgrading incrementally.
  *
  * Security:
- * - Master key MUST be exactly 32 bytes (256 bits).
- * - Startup validation throws if invalid.
- * - Key data and wrapped keys are NEVER logged.
- * - Ready to be swapped with AWS KMS / GCP Cloud KMS in Sprint 16.
+ *  - Key material is NEVER logged.
+ *  - Sprint 16 wrapped format prefix: 'eg-kms:' or 'eg-hsm:'
+ *  - Legacy format is auto-detected on unwrap for backwards compatibility.
  */
 
 const crypto = require('crypto');
+
+// ── Legacy Software KeyWrapper (used when KMS is not active) ──────────────────
 
 class KeyWrapper {
   constructor(masterKeyBase64, kekId = 'master-v1') {
@@ -52,8 +60,8 @@ class KeyWrapper {
   }
 
   /**
-   * Wraps a 256-bit Data Encryption Key (DEK)
-   * Format: IV (12B) + AuthTag (16B) + Ciphertext (32B) -> Base64 string
+   * Wraps a 256-bit DEK using AES-256-GCM.
+   * Format: IV (12B) + AuthTag (16B) + Ciphertext (32B) → Base64
    */
   wrapKey(dekBuffer) {
     if (!Buffer.isBuffer(dekBuffer) || dekBuffer.length !== 32) {
@@ -72,8 +80,8 @@ class KeyWrapper {
   }
 
   /**
-   * Unwraps a wrapped DEK
-   * Returns original 32-byte DEK Buffer
+   * Unwraps a legacy-format wrapped DEK.
+   * Returns original 32-byte DEK Buffer.
    */
   unwrapKey(wrappedDekBase64) {
     if (!wrappedDekBase64 || typeof wrappedDekBase64 !== 'string') {
@@ -81,12 +89,12 @@ class KeyWrapper {
     }
 
     const packed = Buffer.from(wrappedDekBase64, 'base64');
-    if (packed.length < 28) { // 12 (iv) + 16 (tag) = 28 min
+    if (packed.length < 28) {
       throw new Error('Invalid wrapped DEK payload length');
     }
 
-    const iv = packed.subarray(0, 12);
-    const tag = packed.subarray(12, 28);
+    const iv         = packed.subarray(0, 12);
+    const tag        = packed.subarray(12, 28);
     const ciphertext = packed.subarray(28);
 
     const decipher = crypto.createDecipheriv('aes-256-gcm', this._masterKey, iv);
@@ -95,16 +103,13 @@ class KeyWrapper {
 
     try {
       const dek = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-      if (dek.length !== 32) {
-        throw new Error('Unwrapped DEK length mismatch');
-      }
+      if (dek.length !== 32) throw new Error('Unwrapped DEK length mismatch');
       return dek;
     } catch (err) {
       throw new Error('Failed to unwrap DEK: authentication verification failed or key is invalid');
     }
   }
 
-  // Prevent console.log / util.inspect from exposing the key
   [Symbol.for('nodejs.util.inspect.custom')]() {
     return `[KeyWrapper: kekId=${this.kekId}, key=[REDACTED]]`;
   }
@@ -114,23 +119,102 @@ class KeyWrapper {
   }
 }
 
-let defaultWrapper = null;
+// ── KMS-backed KeyWrapper (Sprint 16B) ────────────────────────────────────────
 
-function getKeyWrapper() {
-  if (!defaultWrapper) {
-    const masterKey = process.env.STORAGE_MASTER_KEY;
-    const kekId = process.env.STORAGE_KEK_ID || 'master-v1';
-    defaultWrapper = new KeyWrapper(masterKey, kekId);
+/**
+ * KmsKeyWrapper: async wrap/unwrap delegated to the active KeyProvider.
+ * Contextual AAD (evidenceId, orgId) is passed through on each call.
+ */
+class KmsKeyWrapper {
+  constructor(provider, kekId = 'STORAGE_KEK') {
+    this._provider = provider;
+    this._kekId    = kekId;
   }
-  return defaultWrapper;
+
+  getKekId() {
+    return this._kekId;
+  }
+
+  /**
+   * Async: wraps a DEK using the KMS provider with optional context binding.
+   * @param {Buffer} dekBuffer - 32-byte DEK
+   * @param {Object} [context] - { evidenceId, orgId } bound as AAD
+   * @returns {Promise<string>} Serialized wrapped key string
+   */
+  async wrapKey(dekBuffer, context = {}) {
+    const result = await this._provider.wrap(this._kekId, dekBuffer, context);
+    return result.wrappedKey;
+  }
+
+  /**
+   * Async: unwraps a KMS-wrapped DEK.
+   * @param {string} wrappedKey
+   * @param {Object} [context] - Must match the context used at wrap time
+   * @returns {Promise<Buffer>} Plaintext 32-byte DEK
+   */
+  async unwrapKey(wrappedKey, context = {}) {
+    return this._provider.unwrap(this._kekId, wrappedKey, context);
+  }
+
+  [Symbol.for('nodejs.util.inspect.custom')]() {
+    return `[KmsKeyWrapper: kekId=${this._kekId}, provider=${this._provider.name || 'kms'}]`;
+  }
+
+  toJSON() {
+    return { kekId: this._kekId, provider: this._provider.name || 'kms', status: 'CONFIGURED' };
+  }
+}
+
+// ── Singleton Factory ─────────────────────────────────────────────────────────
+
+let _defaultWrapper = null;
+
+/**
+ * Returns the configured key wrapper singleton.
+ *
+ * If KMS is active (KMS_PROVIDER is set to something other than 'local',
+ * or STORAGE_USE_KMS=true), returns a KmsKeyWrapper backed by the KMS provider.
+ * Otherwise falls back to the legacy software KeyWrapper using STORAGE_MASTER_KEY.
+ *
+ * NOTE: KmsKeyWrapper.wrapKey / unwrapKey are ASYNC.
+ * Callers must await them. The legacy KeyWrapper.wrapKey / unwrapKey are sync.
+ * storageService.js detects KMS mode via isKmsMode() and awaits accordingly.
+ */
+function getKeyWrapper() {
+  if (_defaultWrapper) return _defaultWrapper;
+
+  const providerName  = (process.env.KMS_PROVIDER || 'local').toLowerCase();
+  const useKms        = providerName !== 'local' || process.env.STORAGE_USE_KMS === 'true';
+
+  if (useKms) {
+    const { getKeyProvider } = require('../services/kms/index');
+    const provider = getKeyProvider();
+    _defaultWrapper = new KmsKeyWrapper(provider, process.env.STORAGE_KEK_ID || 'STORAGE_KEK');
+  } else {
+    const masterKey = process.env.STORAGE_MASTER_KEY;
+    const kekId     = process.env.STORAGE_KEK_ID || 'master-v1';
+    _defaultWrapper = new KeyWrapper(masterKey, kekId);
+  }
+
+  return _defaultWrapper;
+}
+
+/**
+ * Returns true when the KMS-backed async wrapper is active.
+ */
+function isKmsMode() {
+  const providerName = (process.env.KMS_PROVIDER || 'local').toLowerCase();
+  return providerName !== 'local' || process.env.STORAGE_USE_KMS === 'true';
 }
 
 function resetKeyWrapper() {
-  defaultWrapper = null;
+  _defaultWrapper = null;
 }
 
 module.exports = {
   KeyWrapper,
+  KmsKeyWrapper,
   getKeyWrapper,
+  isKmsMode,
   resetKeyWrapper
 };

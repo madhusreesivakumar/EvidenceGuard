@@ -19,6 +19,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-kms": "^3.1146.0",
     "@aws-sdk/client-s3": "^3.1146.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",

@@ -163,6 +163,12 @@ app.use('/api/users',      userRoutes);
 app.use('/api/keys',       keyRoutes);
 app.use('/api/custody',    custodyRouter);
 
+// Sprint 16B: KMS administration routes (FEATURE_KMS=true)
+if (process.env.FEATURE_KMS === 'true') {
+  const kmsRoutes = require('./routes/kmsRoutes');
+  app.use('/api/kms', kmsRoutes);
+}
+
 // ── 404 for unknown /api routes ───────────────────────────────────────────────
 app.use('/api', (req, res) => {
   res.status(404).json({
@@ -207,6 +213,26 @@ if (require.main === module) {
         const { startNotificationWorker } = require('./services/notificationWorker');
         verifySmtpConnection().catch(() => {});
         startNotificationWorker();
+      }
+
+      // Sprint 16B: KMS provider startup health check
+      if (process.env.FEATURE_KMS === 'true') {
+        try {
+          const { healthCheck } = require('./services/kms/index');
+          const kmsHealth = await healthCheck();
+          if (kmsHealth.status === 'UNHEALTHY') {
+            console.error('[KMS] FATAL: KMS provider is UNHEALTHY at startup:', kmsHealth);
+            process.exit(1);
+          }
+          console.log(`[KMS] Provider health: ${kmsHealth.status} (${kmsHealth.provider || 'unknown'}, ${kmsHealth.latencyMs}ms)`);
+        } catch (kmsErr) {
+          if (kmsErr.code === 'KMS_INSECURE_CONFIG') {
+            console.error('[KMS] FATAL:', kmsErr.message);
+            process.exit(1);
+          }
+          // Non-fatal warnings for misconfiguration in dev
+          console.warn('[KMS] Warning: KMS initialization error:', kmsErr.message);
+        }
       }
 
       const server = app.listen(cfg.port, () => {

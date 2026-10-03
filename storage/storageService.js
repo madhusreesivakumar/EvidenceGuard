@@ -23,7 +23,7 @@ const { pipeline } = require('stream/promises');
 
 const localDriver = require('./localDriver');
 const s3Driver = require('./s3Driver');
-const { getKeyWrapper } = require('./keyWrapper');
+const { getKeyWrapper, isKmsMode } = require('./keyWrapper');
 const {
   createEncryptStream,
   createDecryptStream,
@@ -74,7 +74,15 @@ async function save(source, storageKey, options = {}) {
   // ── Envelope Encryption Flow ────────────────────────────────────────────────
   const keyWrapper = getKeyWrapper();
   const dek = crypto.randomBytes(32);
-  const wrappedDek = keyWrapper.wrapKey(dek);
+  // Context for contextual AAD binding (Sprint 16B): evidenceId and orgId prevent cross-record key transplant
+  const wrapContext = {
+    ...(options.evidenceId ? { evidenceId: String(options.evidenceId) } : {}),
+    ...(options.orgId      ? { orgId: String(options.orgId) }           : {}),
+    purpose: 'EVIDENCE_ENVELOPE_DEK'
+  };
+  const wrappedDek = isKmsMode()
+    ? await keyWrapper.wrapKey(dek, wrapContext)
+    : keyWrapper.wrapKey(dek);
   const chunkSize = options.chunkSize || DEFAULT_CHUNK_SIZE;
 
   // Stream encryption with SHA-256 & byte counting for ciphertext
@@ -168,7 +176,14 @@ async function getStream(storageKey, options = {}) {
   // If encryption metadata is present, wrap raw stream with decryptor
   if (options.encryption && options.encryption.wrappedDek) {
     const keyWrapper = getKeyWrapper();
-    const dek = keyWrapper.unwrapKey(options.encryption.wrappedDek);
+    const unwrapContext = {
+      ...(options.evidenceId ? { evidenceId: String(options.evidenceId) } : {}),
+      ...(options.orgId      ? { orgId: String(options.orgId) }           : {}),
+      purpose: 'EVIDENCE_ENVELOPE_DEK'
+    };
+    const dek = isKmsMode()
+      ? await keyWrapper.unwrapKey(options.encryption.wrappedDek, unwrapContext)
+      : keyWrapper.unwrapKey(options.encryption.wrappedDek);
     const decryptStream = createDecryptStream(dek);
     return rawStream.pipe(decryptStream);
   }

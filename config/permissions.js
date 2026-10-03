@@ -10,7 +10,8 @@ const PERMISSIONS = {
   SUPER_ADMIN: [
     'manageOrgs',
     'viewOrgs',
-    'viewPlatformAudit'
+    'viewPlatformAudit',
+    'admin:kms'  // Sprint 16B: platform-level KMS administration
   ],
 
   // Tenant administrator: full access within the tenant organization
