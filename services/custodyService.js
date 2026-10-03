@@ -606,6 +606,22 @@ async function recordCustodyEvent(params = {}) {
     req
   });
 
+  if (type === 'TRANSFER_INITIATED') {
+    try {
+      const eventBus = require('./eventBus');
+      eventBus.emit('CUSTODY_TRANSFER_INITIATED', {
+        evidenceId,
+        transferEvent: created,
+        actorUser: user,
+        toUserId: resolvedToUserId,
+        toUserName,
+        req
+      });
+    } catch (busErr) {
+      console.error('[EVENT_BUS ERROR]', busErr);
+    }
+  }
+
   return created;
 }
 

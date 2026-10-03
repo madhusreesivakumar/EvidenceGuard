@@ -177,6 +177,19 @@ exports.changeRole = async (req, res, next) => {
       req
     });
 
+    try {
+      const eventBus = require('../services/eventBus');
+      eventBus.emit('ROLE_CHANGED', {
+        user: target,
+        oldRole,
+        newRole: role,
+        actorUser: req.user,
+        req
+      });
+    } catch (busErr) {
+      console.error('[EVENT_BUS ERROR]', busErr);
+    }
+
     res.status(200).json({ success: true, message: 'Role updated', user: target.toJSON() });
   } catch (error) {
     next(error);
@@ -243,6 +256,17 @@ exports.deactivateUser = async (req, res, next) => {
       description: `Admin deactivated user ${updated.email}`,
       req
     });
+
+    try {
+      const eventBus = require('../services/eventBus');
+      eventBus.emit('USER_DEACTIVATED', {
+        user: updated,
+        actorUser: req.user,
+        req
+      });
+    } catch (busErr) {
+      console.error('[EVENT_BUS ERROR]', busErr);
+    }
 
     res.status(200).json({ success: true, message: 'User deactivated', user: updated.toJSON() });
   } catch (error) {

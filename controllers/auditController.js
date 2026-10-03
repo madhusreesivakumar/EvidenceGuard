@@ -11,7 +11,8 @@ const ALLOWED_ACTIONS = [
   'VERIFY', 'TAMPER_DETECTED', 'DELETE', 'BLOCK_CREATED',
   'BLOCKCHAIN_VALIDATED', 'USER_CREATED', 'ROLE_CHANGED', 'QR_GENERATED',
   'USER_DEACTIVATED', 'KEY_REGISTERED', 'KEY_REVOKED',
-  'CUSTODY_EVENT', 'CUSTODY_TRANSFER'
+  'CUSTODY_EVENT', 'CUSTODY_TRANSFER',
+  'NOTIFICATION_FAILED', 'PREFERENCES_CHANGED'
 ];
 
 const ALLOWED_SORT_FIELDS = ['timestamp', 'action', 'userName', 'evidenceId', 'seq'];
@@ -236,6 +237,21 @@ const validateAuditChain = async (req, res, next) => {
       description: `Audit chain validated: ${valid ? 'VALID' : 'INVALID'} (${entriesChecked} entries)`,
       req
     });
+
+    if (!valid) {
+      try {
+        const eventBus = require('../services/eventBus');
+        eventBus.emit('CHAIN_INVALID', {
+          chainType: 'AUDIT',
+          issues,
+          firstBrokenSeq,
+          actorUser: req.user,
+          req
+        });
+      } catch (busErr) {
+        console.error('[EVENT_BUS ERROR]', busErr);
+      }
+    }
 
     return res.json({
       success: true,

@@ -25,8 +25,15 @@ const nextAuditId = async () => {
   return `AUD-${String(seq).padStart(6, '0')}`;
 };
 
+const nextNotificationId = async () => {
+  const year = new Date().getFullYear();
+  const seq = await getNextSequence(`notificationId_${year}`);
+  return `NOTIF-${year}-${String(seq).padStart(4, '0')}`;
+};
+
 module.exports = {
   nextEvidenceId,
   nextCaseId,
-  nextAuditId
+  nextAuditId,
+  nextNotificationId
 };

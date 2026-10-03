@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: evidenceguard-mailhog
+    ports:
+      - "1025:1025" # SMTP port
+      - "8025:8025" # Web UI
+    restart: unless-stopped
+
+  # Optional local MongoDB for development
+  mongodb:
+    image: mongo:7.0
+    container_name: evidenceguard-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

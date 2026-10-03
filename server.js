@@ -186,6 +186,10 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
+// ── Sprint 13: Initialize Notification Dispatcher ───────────────────────────
+const { initNotificationDispatcher } = require('./services/notificationDispatcher');
+initNotificationDispatcher();
+
 // ── Start server ──────────────────────────────────────────────────────────────
 if (require.main === module) {
   connectDB()
@@ -196,12 +200,25 @@ if (require.main === module) {
         console.error('FATAL: Failed to initialize Genesis Block', err);
         process.exit(1);
       }
+
+      // Sprint 13: Notification Worker & SMTP verification
+      if (process.env.FEATURE_NOTIFICATIONS === 'true') {
+        const { verifySmtpConnection } = require('./services/emailService');
+        const { startNotificationWorker } = require('./services/notificationWorker');
+        verifySmtpConnection().catch(() => {});
+        startNotificationWorker();
+      }
+
       const server = app.listen(cfg.port, () => {
         console.log(`[Server] EvidenceGuard listening on port ${cfg.port} (${cfg.isProduction ? 'production' : 'development'})`);
       });
 
       process.on('SIGINT', async () => {
         console.log('\n[Server] SIGINT received. Shutting down...');
+        if (process.env.FEATURE_NOTIFICATIONS === 'true') {
+          const { stopNotificationWorker } = require('./services/notificationWorker');
+          stopNotificationWorker();
+        }
         await mongoose.connection.close();
         server.close(() => {
           console.log('[Server] Closed.');

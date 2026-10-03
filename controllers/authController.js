@@ -61,12 +61,20 @@ exports.login = async (req, res, next) => {
     if (!user) {
       await bcrypt.compare(password, '$2b$12$00000000000000000000000000000000000000000000000000000');
       await logEvent({ action: 'LOGIN', description: 'Failed login attempt', req });
+      try {
+        const eventBus = require('../services/eventBus');
+        eventBus.emit('LOGIN_FAILED', { email: normalizedEmail, req });
+      } catch (_) {}
       return res.status(401).json({ success: false, code: 'AUTH_FAILED', message: 'Invalid email or password' });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       await logEvent({ action: 'LOGIN', description: 'Failed login attempt', req });
+      try {
+        const eventBus = require('../services/eventBus');
+        eventBus.emit('LOGIN_FAILED', { email: normalizedEmail, req });
+      } catch (_) {}
       return res.status(401).json({ success: false, code: 'AUTH_FAILED', message: 'Invalid email or password' });
     }
 
@@ -74,6 +82,10 @@ exports.login = async (req, res, next) => {
     if (!user.isActive) {
       await bcrypt.compare(password, '$2b$12$00000000000000000000000000000000000000000000000000000');
       await logEvent({ action: 'LOGIN', description: 'Failed login attempt (inactive user)', req });
+      try {
+        const eventBus = require('../services/eventBus');
+        eventBus.emit('LOGIN_FAILED', { email: normalizedEmail, req });
+      } catch (_) {}
       return res.status(401).json({ success: false, code: 'AUTH_FAILED', message: 'Invalid email or password' });
     }
 

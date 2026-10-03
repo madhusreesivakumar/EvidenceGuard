@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 /**
  * config/env.js
  * Sprint 8A – startup environment validation.
@@ -102,5 +102,12 @@ module.exports = {
   port,
   publicBaseUrl: rawPublicBaseUrl,
   isProduction,
-  clientOrigin: process.env.CLIENT_ORIGIN || null
+  clientOrigin: process.env.CLIENT_ORIGIN || null,
+  featureNotifications: process.env.FEATURE_NOTIFICATIONS === 'true',
+  smtpHost: process.env.SMTP_HOST || 'localhost',
+  smtpPort: parseInt(process.env.SMTP_PORT || '1025', 10),
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  smtpSecure: process.env.SMTP_SECURE === 'true',
+  emailFrom: process.env.EMAIL_FROM || 'EvidenceGuard Security <notifications@evidenceguard.local>'
 };

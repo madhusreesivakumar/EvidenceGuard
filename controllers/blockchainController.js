@@ -73,6 +73,21 @@ const validateBlockchain = async (req, res, next) => {
       { upsert: true, returnDocument: 'after' }
     );
 
+    if (!result.valid) {
+      try {
+        const eventBus = require('../services/eventBus');
+        eventBus.emit('CHAIN_INVALID', {
+          chainType: 'BLOCKCHAIN',
+          issues: result.issues,
+          firstBrokenBlock: result.firstBrokenBlock,
+          actorUser: req.user,
+          req
+        });
+      } catch (busErr) {
+        console.error('[EVENT_BUS ERROR]', busErr);
+      }
+    }
+
     res.json({
       success: true,
       valid: result.valid,

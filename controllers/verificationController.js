@@ -131,6 +131,20 @@ const verifyEvidence = async (req, res, next) => {
         description: `Tamper detected on ${evidence.evidenceId}. Orig: ${evidence.hash.substring(0, 12)} Sub: ${serverHash.substring(0, 12)}`,
         req
       });
+
+      // Sprint 13: Emit VERIFICATION_TAMPERED after audit log commits
+      try {
+        const eventBus = require('../services/eventBus');
+        eventBus.emit('VERIFICATION_TAMPERED', {
+          evidence,
+          verification,
+          actorUser: req.user,
+          submittedHash: serverHash,
+          req
+        });
+      } catch (busErr) {
+        console.error('[EVENT_BUS ERROR]', busErr);
+      }
     }
 
     // Sprint 12: Chain of Custody automatic ACCESSED event
