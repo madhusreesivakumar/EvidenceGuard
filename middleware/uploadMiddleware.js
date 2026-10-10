@@ -15,23 +15,32 @@ const storage = multer.diskStorage({
 });
 
 const ALLOWED_MIME_TYPES = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'video/mp4', 'video/webm', 'video/quicktime',
-  'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/ogg',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff',
+  'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska',
+  'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/ogg', 'audio/aac', 'audio/flac',
   'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'
+  'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv',
+  'application/json', 'application/xml', 'text/xml', 'text/html', 'text/log',
+  'application/zip', 'application/x-zip-compressed', 'application/gzip', 'application/x-tar', 'application/x-7z-compressed', 'application/vnd.rar',
+  'application/octet-stream'
 ];
 
 const ALLOWED_EXTS = [
-  '.jpg', '.jpeg', '.png', '.gif', '.webp',
-  '.mp4', '.webm', '.mov',
-  '.mp3', '.wav', '.m4a', '.ogg',
-  '.pdf', '.doc', '.docx', '.txt', '.xlsx', '.csv'
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tif', '.tiff',
+  '.mp4', '.webm', '.mov', '.avi', '.mkv',
+  '.mp3', '.wav', '.m4a', '.ogg', '.aac', '.flac',
+  '.pdf', '.doc', '.docx', '.txt', '.xlsx', '.csv',
+  '.json', '.xml', '.html', '.log', '.bin', '.dat', '.db',
+  '.zip', '.gz', '.tar', '.7z', '.rar', '.pcap', '.pcapng', '.eml', '.msg', '.py', '.js', '.sh'
 ];
 
 const fileFilter = (req, file, cb) => {
+  // Allow all file types for verification requests
+  if (req.originalUrl && req.originalUrl.includes('/verify')) {
+    return cb(null, true);
+  }
   const ext = path.extname(file.originalname).toLowerCase();
-  if (ALLOWED_MIME_TYPES.includes(file.mimetype) && ALLOWED_EXTS.includes(ext)) {
+  if (ALLOWED_MIME_TYPES.includes(file.mimetype) || ALLOWED_EXTS.includes(ext) || file.mimetype === 'application/octet-stream') {
     cb(null, true);
   } else {
     cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', 'File type not allowed'), false);

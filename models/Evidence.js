@@ -38,12 +38,16 @@ const evidenceSchema = new mongoose.Schema({
   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   verifiedAt: Date,
   blockNumber: Number,
+  txHash: String,
+  contractAddress: String,
+  uploaderWallet: String,
+  network: String,
   isDeleted: { type: Boolean, default: false },
   deletedAt: Date,
   deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   deletedByName: String,
   deletedReason: String,
-  storageRemoved: { type: Boolean, default: true },
+  storageRemoved: { type: Boolean, default: false },
   isDemo: { type: Boolean, default: false }
 }, {
   timestamps: { createdAt: 'createdAt', updatedAt: false }

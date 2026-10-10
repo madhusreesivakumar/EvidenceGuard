@@ -43,16 +43,14 @@
         <div class="logo-icon">🔐</div> EvidenceGuard
       </div>
       <nav class="sidebar-nav">
-        <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
-        <a href="upload.html" class="nav-item investigator-only"><span class="nav-icon">⬆</span> Upload Evidence</a>
-        <a href="records.html" class="nav-item"><span class="nav-icon">🗂</span> Evidence Records</a>
-        <a href="verify.html" class="nav-item"><span class="nav-icon">✅</span> Verify Evidence</a>
-        <a href="blockchain.html" class="nav-item audit-only"><span class="nav-icon">⛓</span> Blockchain</a>
-        <a href="audit.html" class="nav-item audit-only"><span class="nav-icon">📋</span> Audit Trail</a>
-        <a href="custody.html" class="nav-item investigator-only"><span class="nav-icon">🤝</span> Custody Ledger</a>
-        <a href="keys.html" class="nav-item"><span class="nav-icon">🔑</span> Digital Keys</a>
-        <a href="users.html" class="nav-item users-only"><span class="nav-icon">👥</span> Users</a>
-        <a href="about.html" class="nav-item"><span class="nav-icon">ℹ️</span> About</a>
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">&#9700;</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">&#8679;</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">&#9776;</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">&#10003;</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon">&#9741;</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">&#9741;</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">&#9786;</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">&#9432;</span> About</a>
       </nav>
       <div class="sidebar-footer">
         <div id="sidebarUserName" style="font-weight:bold;">User</div>
@@ -528,10 +526,35 @@
           <textarea id="rejectReasonInput" class="form-control" rows="3" placeholder="e.g. Packaging damaged, unverified tamper seal, incorrect officer assigned" required style="width: 100%;"></textarea>
         </div>
         <div style="display: flex; gap: 10px; justify-content: flex-end;">
-          <button type="button" id="cancelRejectBtn" class="btn btn-secondary">Cancel</button>
-          <button type="submit" id="submitRejectBtn" class="btn btn-primary" style="background: #e74c3c;">Decline Transfer</button>
+  <!-- Delete Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal-content" style="max-width: 520px;">
+      <h3 style="margin-top: 0; color: var(--status-tampered); display: flex; align-items: center; gap: 8px;">
+        <span>🗑</span> Confirm Evidence Deletion
+      </h3>
+      
+      <div style="margin: 1.25rem 0; line-height: 1.5;">
+        <p style="margin-bottom: 0.75rem; font-size: 0.95rem;">
+          Are you sure you want to delete evidence <strong id="deleteEvidenceDisplay" style="color: var(--accent-cyan);"></strong>?
+        </p>
+        
+        <div style="background: rgba(255, 77, 77, 0.1); border-left: 3px solid var(--status-tampered); padding: 0.85rem 1rem; border-radius: 4px; font-size: 0.85rem; color: #ffb3b3; margin-bottom: 1.25rem;">
+          ⚠️ <strong>Notice:</strong> The ledger block is kept; the record is marked deleted and the stored file is removed.
         </div>
-      </form>
+
+        <div class="form-group">
+          <label for="deleteReasonInput" class="form-label" style="font-weight: 600; color: var(--text-main);">
+            Reason for Deletion <span style="color: var(--status-tampered);">* (5 to 300 characters)</span>
+          </label>
+          <textarea id="deleteReasonInput" class="form-control" rows="3" placeholder="Enter formal audit reason for deleting this evidence record..." minlength="5" maxlength="300" style="resize: vertical;"></textarea>
+          <div id="deleteReasonError" style="color: var(--status-tampered); font-size: 0.8rem; margin-top: 4px; display: none;"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-secondary" id="cancelDeleteBtn">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Record</button>
+      </div>
     </div>
   </div>
 </body>

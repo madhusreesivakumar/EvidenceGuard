@@ -147,12 +147,14 @@ async function uploadMultipart(pathUrl, fields, fileContent, fileName, cookies) 
 
   let mongod;
   let server;
-  let externalServer = false;
+  let externalServer = Boolean(process.env.TEST_BASE_URL);
 
-  try {
-    const health = await request('GET', '/api/health');
-    if (health.status === 200) externalServer = true;
-  } catch (_) {}
+  if (externalServer) {
+    try {
+      const health = await request('GET', '/api/health');
+      if (health.status !== 200) externalServer = false;
+    } catch (_) { externalServer = false; }
+  }
 
   const User = require('../models/User');
   const Evidence = require('../models/Evidence');

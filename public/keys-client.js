@@ -337,11 +337,11 @@ async function initKeysPage() {
     btnOpenModal.onclick = () => {
       form.reset();
       progress.style.display = 'none';
-      modal.style.display = 'flex';
+      openModal(modal);
     };
   }
   if (btnCancel) {
-    btnCancel.onclick = () => { modal.style.display = 'none'; };
+    btnCancel.onclick = () => { closeModal(modal); };
   }
 
   // Form submission
@@ -364,7 +364,7 @@ async function initKeysPage() {
         await generateAndRegisterKey(label, pass);
 
         EG.utils.toast('Key generated and registered successfully!', 'success');
-        modal.style.display = 'none';
+        closeModal(modal);
         loadKeys();
       } catch (err) {
         EG.utils.toast(err.message || 'Key registration failed', 'error');
@@ -379,11 +379,11 @@ async function initKeysPage() {
   window.openRevokeModal = (keyId) => {
     revokeKeyIdInput.value = keyId;
     document.getElementById('revokeReason').value = '';
-    revokeModal.style.display = 'flex';
+    openModal(revokeModal);
   };
 
   if (btnCancelRevoke) {
-    btnCancelRevoke.onclick = () => { revokeModal.style.display = 'none'; };
+    btnCancelRevoke.onclick = () => { closeModal(revokeModal); };
   }
 
   if (revokeForm) {
@@ -397,7 +397,7 @@ async function initKeysPage() {
         if (!res.success) throw new Error(res.message);
 
         EG.utils.toast('Key revoked successfully.', 'info');
-        revokeModal.style.display = 'none';
+        closeModal(revokeModal);
         loadKeys();
       } catch (err) {
         EG.utils.toast(err.message || 'Revocation failed', 'error');

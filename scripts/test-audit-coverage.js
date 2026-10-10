@@ -105,12 +105,7 @@ function buildMultipart(fields, fileContent, fileName) {
 
   let server;
   let mongod;
-  let externalServer = false;
-
-  try {
-    const health = await request('GET', '/api/health');
-    if (health.status === 200) externalServer = true;
-  } catch (_) {}
+  const externalServer = Boolean(process.env.TEST_BASE_URL);
 
   process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-audit-coverage-jwt-secret-key-32chars!';
 

@@ -49,9 +49,9 @@ async function runTests() {
   const inv   = await User.create({ name: 'Inv',   email: 'inv@rbac.test',   passwordHash: 'x', role: 'INVESTIGATOR', isActive: true });
   const viewer= await User.create({ name: 'Viewer',email: 'viewer@rbac.test',passwordHash: 'x', role: 'VIEWER', isActive: true });
 
-  const adminCookie  = `token=${generateToken(admin._id,  admin.role)}`;
-  const invCookie    = `token=${generateToken(inv._id,    inv.role)}`;
-  const viewerCookie = `token=${generateToken(viewer._id, viewer.role)}`;
+  const adminCookie  = `token=${await generateToken(admin._id,  admin.role)}`;
+  const invCookie    = `token=${await generateToken(inv._id,    inv.role)}`;
+  const viewerCookie = `token=${await generateToken(viewer._id, viewer.role)}`;
 
   console.log('\n--- [1] Unauthenticated access ---');
   const r1 = await fetch(`${base}/audit`);
@@ -91,7 +91,7 @@ async function runTests() {
 
   console.log('\n--- [10] Inactive user token rejected ---');
   const inactive = await User.create({ name: 'Dead', email: 'dead@rbac.test', passwordHash: 'x', role: 'ADMIN', isActive: false });
-  const deadCookie = `token=${generateToken(inactive._id, inactive.role)}`;
+  const deadCookie = `token=${await generateToken(inactive._id, inactive.role)}`;
   const r10 = await fetch(`${base}/audit`, { headers: { Cookie: deadCookie } });
   assert(r10.status === 401, 'Inactive user token → 401');
 

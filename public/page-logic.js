@@ -6,6 +6,8 @@ Object.assign(window.EG, {
     ...window.EG.auth,
     getToken: () => null,
     getUser: () => window.EG.auth.currentUser,
+    clearAuth: () => { if (window.EG.auth.logout) window.EG.auth.logout(); else window.location.href = 'login.html'; },
+    setAuth: (token, user) => { window.EG.auth.currentUser = user; },
     requireAuth: (redirectTo = 'login.html') => {
       window.EG.auth.requireLogin();
     },
@@ -25,11 +27,20 @@ Object.assign(window.EG, {
   utils: {
     sha256File: async (file) => {
       if (!file) return null;
-      const arrayBuffer = await file.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      return hashHex;
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const hashBuffer = await window.crypto.subtle.digest('SHA-256', arrayBuffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          return hashHex;
+        } catch (e) {
+          console.warn('crypto.subtle.digest failed', e);
+        }
+      } else {
+        console.warn('crypto.subtle not available. Hash will be computed server-side.');
+      }
+      return null;
     },
     formatDate: (d) => {
       if (!d) return 'N/A';
@@ -228,29 +239,76 @@ function initLogin() {
   const form = document.getElementById('loginForm');
   if (!form) return;
   
-  const errorDiv = document.createElement('div');
-  errorDiv.style.cssText = 'color: #e74c3c; margin-top: 10px; font-size: 14px; text-align: center;';
-  form.appendChild(errorDiv);
+  let errorDiv = document.getElementById('errorMsg');
+  if (!errorDiv) {
+    errorDiv = document.createElement('div');
+    errorDiv.id = 'errorMsg';
+    errorDiv.style.cssText = 'color: #e74c3c; margin-top: 10px; font-size: 14px; text-align: center;';
+    form.appendChild(errorDiv);
+  }
+
+  const toggleBtn = document.getElementById('togglePassword');
+  const passwordInput = document.getElementById('password');
+  if (toggleBtn && passwordInput) {
+    toggleBtn.addEventListener('click', () => {
+      const isPassword = passwordInput.type === 'password';
+      passwordInput.type = isPassword ? 'text' : 'password';
+      toggleBtn.textContent = isPassword ? 'Hide' : 'Show';
+    });
+  }
+
+  const quickAdminBtn = document.getElementById('quickAdminBtn');
+  const quickInvestBtn = document.getElementById('quickInvestBtn');
+  const emailInput = document.getElementById('email');
+
+  if (quickAdminBtn && emailInput && passwordInput) {
+    quickAdminBtn.addEventListener('click', () => {
+      emailInput.value = 'admin@eg.local';
+      passwordInput.value = 'Admin1234!';
+      form.requestSubmit();
+    });
+  }
+
+  if (quickInvestBtn && emailInput && passwordInput) {
+    quickInvestBtn.addEventListener('click', () => {
+      emailInput.value = 'invest@eg.local';
+      passwordInput.value = 'Invest123!';
+      form.requestSubmit();
+    });
+  }
   
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    errorDiv.style.display = 'none';
     errorDiv.textContent = '';
     
-    const email = form.email.value;
+    const email = form.email.value.trim();
     const password = form.password.value;
-    const submitBtn = form.querySelector('button[type="submit"]');
+    const submitBtn = form.querySelector('button[type="submit"]') || document.getElementById('loginBtn');
+
+    if (!email || !password) {
+      errorDiv.textContent = 'Please enter both email and password.';
+      errorDiv.style.display = 'block';
+      return;
+    }
     
     if (submitBtn) submitBtn.disabled = true;
     
     try {
       const data = await EG.api.post('/api/auth/login', { email, password });
-      if (data.success && data.token && data.user) {
-        EG.auth.setAuth(data.token, data.user);
-        window.location.href = 'dashboard.html';
+      if (data && data.success && data.user) {
+        EG.auth.currentUser = data.user;
+        const searchParams = new URLSearchParams(window.location.search);
+        const next = searchParams.get('next') || 'dashboard.html';
+        window.location.href = next;
+      } else {
+        throw new Error(data.message || 'Login failed');
       }
     } catch (err) {
-      errorDiv.textContent = err.message || 'Login failed. Please check your credentials.';
-      EG.utils.toast('Login failed', 'error');
+      const msg = err.message || 'Login failed. Please check your credentials.';
+      errorDiv.textContent = msg;
+      errorDiv.style.display = 'block';
+      EG.utils.toast(msg, 'error');
     } finally {
       if (submitBtn) submitBtn.disabled = false;
     }
@@ -263,26 +321,33 @@ function initRegister() {
   const form = document.getElementById('registerForm');
   if (!form) return;
   
-  const errorDiv = document.createElement('div');
-  errorDiv.style.cssText = 'color: #e74c3c; margin-top: 10px; font-size: 14px; text-align: center;';
-  form.appendChild(errorDiv);
+  let errorDiv = document.getElementById('errorMsg');
+  if (!errorDiv) {
+    errorDiv = document.createElement('div');
+    errorDiv.id = 'errorMsg';
+    errorDiv.style.cssText = 'color: #e74c3c; margin-top: 10px; font-size: 14px; text-align: center;';
+    form.appendChild(errorDiv);
+  }
   
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    errorDiv.style.display = 'none';
     errorDiv.textContent = '';
     
-    const name = form.name.value;
-    const email = form.email.value;
+    const name = form.name.value.trim();
+    const email = form.email.value.trim();
     const password = form.password.value;
     const confirmPassword = form.confirmPassword ? form.confirmPassword.value : form.querySelector('input[name="confirmPassword"]')?.value;
     
-    if (password.length < 6) {
-      errorDiv.textContent = 'Password must be at least 6 characters long.';
+    if (password.length < 8) {
+      errorDiv.textContent = 'Password must be at least 8 characters long.';
+      errorDiv.style.display = 'block';
       return;
     }
     
     if (password !== confirmPassword) {
       errorDiv.textContent = 'Passwords do not match.';
+      errorDiv.style.display = 'block';
       return;
     }
     
@@ -291,13 +356,17 @@ function initRegister() {
     
     try {
       const data = await EG.api.post('/api/auth/register', { name, email, password });
-      if (data.success && data.token && data.user) {
-        EG.auth.setAuth(data.token, data.user);
-        window.location.href = 'dashboard.html';
+      if (data && data.success) {
+        EG.utils.toast('Registration successful! Please log in.', 'success');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+      } else {
+        throw new Error(data.message || 'Registration failed');
       }
     } catch (err) {
-      errorDiv.textContent = err.message || 'Registration failed.';
-      EG.utils.toast('Registration failed', 'error');
+      const msg = err.message || 'Registration failed.';
+      errorDiv.textContent = msg;
+      errorDiv.style.display = 'block';
+      EG.utils.toast(msg, 'error');
     } finally {
       if (submitBtn) submitBtn.disabled = false;
     }
@@ -327,9 +396,6 @@ function initDashboard() {
   }
   if (!EG.auth.canViewAudit()) {
     document.querySelectorAll('.audit-only').forEach(el => el.style.display = 'none');
-  }
-  if (!EG.auth.canUpload()) {
-    document.querySelectorAll('.investigator-only').forEach(el => el.style.display = 'none');
   }
   if (!EG.auth.canManageUsers()) {
     document.querySelectorAll('.users-only').forEach(el => el.style.display = 'none');
@@ -419,15 +485,25 @@ function initDashboard() {
           }
 
           if (bcMeta) {
+            const contractCfg = (await EG.web3.loadConfig()) || EG.web3.contractConfig;
+            const contractAddr = contractCfg && contractCfg.address ? `${contractCfg.address.slice(0,10)}...` : '0x5FbDB231...';
+            const connectedWallet = EG.web3.account ? `${EG.web3.account.slice(0,6)}...${EG.web3.account.slice(-4)}` : '<button type="button" class="btn btn-secondary" onclick="EG.web3.connectWallet()" style="padding:2px 8px; font-size:0.75rem;">🦊 Connect Wallet</button>';
+            const networkName = EG.web3.chainId === 11155111 ? 'Ethereum Sepolia Testnet' : 'Sepolia Testnet';
+
             bcMeta.innerHTML = `
               <span>Hash chain intact (${lastVal.blocksChecked || 0} blocks verified).</span>
               <span>Validated by <strong>${escapeHtml(lastVal.validatedByName || 'Admin')}</strong> on ${validDate.toLocaleString()}.</span>
               ${badgesHtml}
+              <div style="margin-top: 8px; font-size: 0.82rem; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 6px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; color: var(--accent-cyan);">
+                <span>🌐 <strong>Network:</strong> ${networkName}</span>
+                <span>📄 <strong>Contract:</strong> <span style="font-family:monospace;">${contractAddr}</span></span>
+                <span>🦊 <strong>Wallet:</strong> <span id="dashWalletDisplay" style="font-family:monospace;">${connectedWallet}</span></span>
+              </div>
             `;
           }
         } else {
           bcPanel.classList.add('bc-panel-invalid');
-          if (bcHeading) bcHeading.textContent = 'âš ï¸ Blockchain Integrity: INTEGRITY BREACH DETECTED';
+          if (bcHeading) bcHeading.textContent = '⚠️ Blockchain Integrity: INTEGRITY BREACH DETECTED';
           if (bcMeta) {
             bcMeta.innerHTML = `
               <span style="color:var(--status-tampered); font-weight:bold;">
@@ -444,7 +520,7 @@ function initDashboard() {
             btnValidateNow.style.display = 'inline-flex';
             btnValidateNow.onclick = async () => {
               btnValidateNow.disabled = true;
-              btnValidateNow.textContent = 'ðŸ›¡ Validating Chain...';
+              btnValidateNow.textContent = '🛡 Validating Chain...';
               try {
                 const valRes = await EG.api.post('/api/blockchain/validate', {});
                 if (valRes.success) {
@@ -457,7 +533,7 @@ function initDashboard() {
                 EG.utils.toast(err.message || 'Validation failed', 'error');
               } finally {
                 btnValidateNow.disabled = false;
-                btnValidateNow.textContent = 'ðŸ›¡ Validate Ledger Now';
+                btnValidateNow.textContent = '🛡 Validate Ledger Now';
               }
             };
           } else {
@@ -607,58 +683,106 @@ function initUpload() {
   EG.auth.requireAuth('login.html');
   
   if (!EG.auth.canUpload()) {
-    EG.utils.toast('You do not have permission to upload evidence.', 'error');
     const form = document.getElementById('uploadForm');
     if (form) form.style.display = 'none';
+    const uploadInterface = document.getElementById('uploadInterface');
+    if (uploadInterface) uploadInterface.style.display = 'none';
+
     const errDiv = document.createElement('div');
-    errDiv.textContent = 'Access Denied. You do not have permission to upload evidence.';
-    errDiv.style.cssText = 'color: red; font-weight: bold; margin: 20px; text-align: center;';
+    errDiv.className = 'glass-card';
+    errDiv.style.cssText = 'max-width: 550px; margin: 40px auto; padding: 30px; text-align: center;';
+    errDiv.innerHTML = `
+      <h3 style="color: var(--status-pending); margin-top: 0;">⚠️ Read-Only Mode (Logged in as Viewer)</h3>
+      <p style="color: var(--text-muted); margin-bottom: 20px;">To upload new evidence to the Ethereum Sepolia Blockchain, please log in using an Admin or Investigator account.</p>
+      <a href="login.html" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px;">🔑 Click to Switch to Admin Account</a>
+    `;
     document.querySelector('main')?.prepend(errDiv);
     return;
   }
   
   let selectedFile = null;
+  let calculatedClientHash = null;
   const fileDrop = document.getElementById('fileDrop');
-  const fileInput = document.getElementById('fileInput');
-  const fileChosen = document.getElementById('fileChosen');
+  const fileInput = document.getElementById('evidenceFile') || document.getElementById('fileInput');
+  const previewZone = document.getElementById('previewZone');
+  const previewName = document.getElementById('previewName');
+  const previewSize = document.getElementById('previewSize');
+  const previewMime = document.getElementById('previewMime');
+  const hashStatus = document.getElementById('hashStatus');
+  const hashResult = document.getElementById('hashResult');
+  const hashValue = document.getElementById('hashValue');
+  const copyHashBtn = document.getElementById('copyHashBtn');
   
+  const updateFilePreview = async (file) => {
+    selectedFile = file;
+    if (!file) return;
+
+    const evNameInput = document.getElementById('evidenceName');
+    if (evNameInput && !evNameInput.value.trim()) {
+      evNameInput.value = file.name;
+    }
+
+    if (previewName) previewName.textContent = file.name;
+    if (previewSize) previewSize.textContent = EG.utils.formatBytes(file.size);
+    if (previewMime) previewMime.textContent = file.type || 'Application/Octet-Stream';
+    if (previewZone) previewZone.style.display = 'block';
+
+    if (hashStatus) { hashStatus.style.display = 'block'; hashStatus.textContent = '⚡ Computing SHA-256 hash...'; }
+    if (hashResult) hashResult.classList.add('hidden');
+
+    try {
+      const h = await EG.utils.sha256File(file);
+      calculatedClientHash = h;
+      if (hashValue) hashValue.textContent = h;
+      if (hashStatus) hashStatus.style.display = 'none';
+      if (hashResult) hashResult.classList.remove('hidden');
+    } catch (err) {
+      if (hashStatus) hashStatus.textContent = '⚠️ Could not calculate hash.';
+    }
+  };
+
+  if (copyHashBtn) {
+    copyHashBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (hashValue && hashValue.textContent) {
+        navigator.clipboard.writeText(hashValue.textContent).then(() => {
+          EG.utils.toast('SHA-256 hash copied', 'info');
+        });
+      }
+    });
+  }
+
   if (fileDrop && fileInput) {
-    // Click to open dialog
     fileDrop.addEventListener('click', (e) => {
-      if (e.target.tagName !== 'INPUT') {
+      if (e.target !== fileInput) {
         fileInput.click();
       }
     });
     
     fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
-        selectedFile = e.target.files[0];
-        if (fileChosen) fileChosen.textContent = `Selected: ${selectedFile.name} (${EG.utils.formatSize(selectedFile.size)})`;
+      if (e.target.files && e.target.files.length > 0) {
+        updateFilePreview(e.target.files[0]);
       }
     });
     
     // Drag and drop
     fileDrop.addEventListener('dragover', (e) => {
       e.preventDefault();
-      fileDrop.style.borderColor = '#3498db';
-      fileDrop.style.backgroundColor = '#f0f8ff';
+      fileDrop.classList.add('drag-over');
     });
     
     fileDrop.addEventListener('dragleave', (e) => {
       e.preventDefault();
-      fileDrop.style.borderColor = '#ccc';
-      fileDrop.style.backgroundColor = 'transparent';
+      fileDrop.classList.remove('drag-over');
     });
     
     fileDrop.addEventListener('drop', (e) => {
       e.preventDefault();
-      fileDrop.style.borderColor = '#ccc';
-      fileDrop.style.backgroundColor = 'transparent';
+      fileDrop.classList.remove('drag-over');
       
-      if (e.dataTransfer.files.length > 0) {
-        selectedFile = e.dataTransfer.files[0];
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         fileInput.files = e.dataTransfer.files; // sync input
-        if (fileChosen) fileChosen.textContent = `Selected: ${selectedFile.name} (${EG.utils.formatSize(selectedFile.size)})`;
+        updateFilePreview(e.dataTransfer.files[0]);
       }
     });
   }
@@ -667,59 +791,130 @@ function initUpload() {
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      e.stopPropagation();
       
-      if (!selectedFile) {
-        EG.utils.toast('Please select a file to upload.', 'warning');
+      const fileInputEl = document.getElementById('evidenceFile') || document.getElementById('fileInput');
+      const targetFile = selectedFile || (fileInputEl && fileInputEl.files && fileInputEl.files[0]);
+      if (!targetFile) {
+        EG.utils.toast('Please select an evidence file.', 'warning');
         return;
       }
-      
+
+      const uploadBtn = document.getElementById('uploadBtn') || form.querySelector('button[type="submit"]');
+      if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '⚡ Processing & Hashing...';
+      }
+
+      const evidenceName = document.getElementById('evidenceName')?.value || targetFile.name;
+      const evidenceType = document.getElementById('evidenceType')?.value || 'Document';
+      const description = document.getElementById('evidenceDesc')?.value || '';
+
       const formData = new FormData();
-      formData.append('evidenceName', form.evidenceName?.value || '');
-      formData.append('evidenceType', form.evidenceType?.value || '');
-      formData.append('caseId', form.caseId?.value || '');
-      formData.append('description', form.description?.value || '');
-      formData.append('file', selectedFile);
+      formData.append('name', evidenceName);
+      formData.append('type', evidenceType);
+      formData.append('evidenceName', evidenceName);
+      formData.append('evidenceType', evidenceType);
+      formData.append('description', description);
+      if (calculatedClientHash) formData.append('clientHash', calculatedClientHash);
+      formData.append('file', targetFile);
       
-      EG.utils.showSpinner('Encrypting and Uploading to Blockchain...');
+      if (typeof EG.utils.showSpinner === 'function') {
+        EG.utils.showSpinner('Uploading evidence & generating SHA-256 hash...');
+      }
       
       try {
+        // 1. Upload to backend server & get server-calculated SHA-256
         const data = await EG.api.upload('/api/evidence', formData);
-        if (data.success && data.evidence) {
-          EG.utils.toast('Evidence uploaded successfully');
-          
-          const resultPanel = document.getElementById('uploadResult');
-          if (resultPanel) {
-            resultPanel.className = 'upload-result-panel show success';
-            resultPanel.style.display = 'block';
+        const ev = data.evidence || data;
+        const evId = ev.evidenceId || `EVD-${Date.now()}`;
+        const evHash = ev.hash || ev.sha256Hash || calculatedClientHash || (await EG.utils.sha256File(targetFile));
+
+        let txResult = null;
+
+        // 2. Connect & Register on Ethereum Sepolia Testnet via MetaMask
+        if (EG.web3.hasMetaMask()) {
+          try {
+            EG.utils.toast('Please confirm the smart contract transaction in MetaMask to register on Sepolia...', 'info');
+            txResult = await EG.web3.registerOnChain({
+              evidenceId: evId,
+              sha256Hash: evHash,
+              evidenceName: evidenceName,
+              evidenceType: evidenceType,
+              description: description
+            });
             
-            const text = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-            text('resEvidenceId', data.evidence.evidenceId);
-            text('resCaseId', data.evidence.caseId);
-            text('resHash', data.evidence.hash);
-            text('resDate', EG.utils.formatDate(data.evidence.createdAt));
-            text('resBlockHash', data.blockHash || 'N/A');
-            text('resFileName', data.evidence.fileName);
+            EG.utils.toast('✅ Evidence registered on Sepolia Testnet!', 'success');
+
+            // Send blockchain proof back to server to update records
+            if (txResult && txResult.txHash) {
+              await EG.api.post(`/api/evidence/${evId}/anchor`, {
+                txHash: txResult.txHash,
+                blockNumber: txResult.blockNumber,
+                contractAddress: txResult.contractAddress,
+                uploaderWallet: txResult.uploader,
+                network: txResult.network
+              }).catch(err => console.warn('Backend anchor update:', err));
+            }
+          } catch (web3Err) {
+            console.warn('Smart Contract registration note:', web3Err);
+            EG.utils.toast('Smart Contract Note: ' + (web3Err.message || 'On-chain registration skipped'), 'warning');
           }
-          
-          const guide = document.getElementById('uploadGuideCard');
-          if (guide) guide.style.display = 'block';
-          
-          // Reset
-          form.reset();
-          selectedFile = null;
-          if (fileChosen) fileChosen.textContent = '';
-          // Wire reload button (replaces onclick attr removed for CSP compliance)
-          const reloadBtn = document.getElementById('btnUploadAnother');
-          if (reloadBtn) reloadBtn.onclick = () => location.reload();
         }
+
+        // 3. Display Success Panel
+        const uploadInterface = document.getElementById('uploadInterface');
+        const successPanel = document.getElementById('successPanel');
+        if (uploadInterface) uploadInterface.style.display = 'none';
+        if (successPanel) {
+          successPanel.classList.remove('hidden');
+          successPanel.style.display = 'block';
+
+          const text = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+          text('resEvId', evId);
+          text('resCaseId', ev.caseId || 'CASE-2026-001');
+          text('resHash', evHash);
+          
+          if (txResult && txResult.txHash) {
+            text('resTxHash', txResult.txHash);
+            text('resBlockNum', `#${txResult.blockNumber}`);
+            text('resUploader', txResult.uploader);
+            
+            const expLink = document.getElementById('resExplorerLink');
+            if (expLink) {
+              expLink.href = `https://sepolia.etherscan.io/tx/${txResult.txHash}`;
+              expLink.style.display = 'inline-block';
+            }
+          } else {
+            text('resTxHash', 'Off-Chain / Local (Connect MetaMask for Sepolia)');
+            text('resBlockNum', 'N/A');
+            text('resUploader', EG.web3.account || 'Local Admin');
+          }
+        }
+
+        const reloadBtn = document.getElementById('btnUploadAnother');
+        if (reloadBtn) {
+          reloadBtn.onclick = (e) => {
+            e.preventDefault();
+            location.reload();
+          };
+        }
+        
       } catch (err) {
         if (err.message && err.message.toLowerCase().includes('duplicate')) {
-          EG.utils.toast('Duplicate evidence detected: ' + err.message, 'error');
+          EG.utils.toast('Duplicate evidence hash detected: ' + err.message, 'error');
         } else {
           EG.utils.toast('Upload failed: ' + err.message, 'error');
         }
       } finally {
-        EG.utils.hideSpinner();
+        if (typeof EG.utils.hideSpinner === 'function') {
+          EG.utils.hideSpinner();
+        }
+        const uBtn = document.getElementById('uploadBtn') || form.querySelector('button[type="submit"]');
+        if (uBtn) {
+          uBtn.disabled = false;
+          uBtn.innerHTML = '⬆ Upload Evidence';
+        }
       }
     });
   }
@@ -759,31 +954,31 @@ function initRecords() {
         data.evidence.forEach(ev => {
           const tr = document.createElement('tr');
           
-          const hashCell = document.createElement('td');
-          hashCell.className = 'hash-cell';
-          hashCell.title = ev.hash;
-          hashCell.textContent = EG.utils.formatHash(ev.hash);
-          
+          let txLink = '';
+          if (ev.txHash) {
+            txLink = `<br><a href="https://sepolia.etherscan.io/tx/${ev.txHash}" target="_blank" style="color:var(--accent-cyan); font-size:0.75rem; text-decoration:underline;">⛓ Sepolia Tx ↗</a>`;
+          }
+
           let actions = `
-            <button onclick="location.href='evidence-details.html?id=${ev._id || ev.evidenceId}'" style="padding:4px 8px; cursor:pointer;">View</button>
-            <button onclick="location.href='verify.html?evidenceId=${ev.evidenceId}'" style="padding:4px 8px; cursor:pointer; background:#f1c40f; border:none; border-radius:3px;">Verify</button>
+            <button onclick="location.href='evidence-details.html?id=${ev._id || ev.evidenceId}'" class="btn btn-secondary" style="padding:4px 8px; font-size:0.78rem;">View</button>
+            <button onclick="location.href='verify.html?evidenceId=${ev.evidenceId}'" class="btn btn-primary" style="padding:4px 8px; font-size:0.78rem; background:#f1c40f; color:#000; border:none; margin-left:4px;">Verify</button>
           `;
           if (EG.auth.canDelete()) {
-            actions += `<button class="del-btn" data-id="${ev._id || ev.evidenceId}" style="padding:4px 8px; cursor:pointer; background:#e74c3c; color:white; border:none; border-radius:3px; margin-left:4px;">Delete</button>`;
+            actions += `<button class="del-btn" data-id="${ev._id || ev.evidenceId}" style="padding:4px 8px; font-size:0.78rem; cursor:pointer; background:#e74c3c; color:white; border:none; border-radius:4px; margin-left:4px;">Delete</button>`;
           }
           
           tr.innerHTML = `
-            <td>${ev.evidenceId}</td>
+            <td><strong>${ev.evidenceId}</strong>${ev.isDemo ? ' <span class="badge badge-demo" style="font-size:0.68rem; padding:2px 4px; background:rgba(0,212,255,0.15); color:var(--accent-cyan); border:1px solid var(--accent-cyan);">DEMO</span>' : ''}</td>
             <td>${ev.caseId || 'N/A'}</td>
-            <td>${ev.name || 'N/A'}</td>
+            <td>${EG.utils.escapeHtml(ev.name || 'N/A')}</td>
             <td>${ev.type || 'N/A'}</td>
+            <td>${EG.utils.escapeHtml(ev.fileName || 'N/A')}</td>
+            <td class="hash-cell" title="${ev.hash}">${EG.utils.formatHash(ev.hash)}${txLink}</td>
+            <td>${ev.uploaderName || ev.uploadedBy?.name || 'Admin'}</td>
+            <td>${EG.utils.formatDate(ev.createdAt)}</td>
             <td>${EG.utils.badgeHtml(ev.status)}</td>
+            <td style="text-align: right;">${actions}</td>
           `;
-          
-          tr.insertBefore(hashCell, null);
-          const actionsTd = document.createElement('td');
-          actionsTd.innerHTML = actions;
-          tr.appendChild(actionsTd);
           
           tbody.appendChild(tr);
         });
@@ -907,16 +1102,9 @@ function initEvidenceDetails() {
         if (deleteBtn) {
           if (EG.auth.canDelete()) {
             deleteBtn.style.display = 'inline-block';
-            deleteBtn.addEventListener('click', async () => {
-              if (confirm('Delete this evidence record?')) {
-                try {
-                  await EG.api.del(`/api/evidence/${ev._id || ev.evidenceId}`);
-                  EG.utils.toast('Deleted successfully');
-                  window.location.href = 'records.html';
-                } catch (err) {
-                  EG.utils.toast('Failed to delete: ' + err.message, 'error');
-                }
-              }
+            deleteBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              openDeleteModal(ev.evidenceId, ev.name);
             });
           } else {
             deleteBtn.style.display = 'none';
@@ -1088,8 +1276,16 @@ function initVerify() {
           if (step2) step2.style.display = 'none';
           if (step3) step3.style.display = 'none';
         } else {
-          setLookupType('case');
-          if (lookupId) lookupId.value = caseIdParam;
+          if (pubData && pubData.evidenceId) {
+            setLookupType('ev');
+            if (lookupId) lookupId.value = pubData.evidenceId;
+          } else if (pubData && pubData.caseId) {
+            setLookupType('case');
+            if (lookupId) lookupId.value = pubData.caseId;
+          } else if (caseIdParam) {
+            setLookupType('case');
+            if (lookupId) lookupId.value = caseIdParam;
+          }
           setTimeout(() => lookupBtn && lookupBtn.click(), 100);
         }
       } catch (err) {
@@ -1109,33 +1305,35 @@ function initVerify() {
     }
   }
 
-  // Lookup Evidence
-  lookupBtn.addEventListener('click', async () => {
+  // Perform Lookup helper
+  const performLookup = async () => {
     lookupError.style.display = 'none';
     evidenceInfo.style.display = 'none';
     currentEvidence = null;
-    disableSteps2And3();
 
-    const val = lookupId.value.trim();
-    if (!val) return;
+    const rawVal = lookupId ? lookupId.value.trim() : '';
+    if (!rawVal) return false;
 
-    if (currentLookupType === 'ev' && !/^EV-\d{4}$/.test(val)) {
-      lookupError.textContent = 'Invalid format. Use EV-0000';
+    const normVal = rawVal.replace(/^EV[\s_]+/i, 'EV-').replace(/^EG[\s_]+/i, 'EG-');
+    if (lookupId) lookupId.value = normVal;
+
+    if (currentLookupType === 'ev' && !/^EV-[A-Za-z0-9_-]+$/i.test(normVal)) {
+      lookupError.textContent = 'Invalid Evidence ID format. (e.g. EV-000001)';
       lookupError.style.display = 'block';
-      return;
+      return false;
     }
-    if (currentLookupType === 'case' && !/^EG-\d{4}-\d{4}$/.test(val)) {
-      lookupError.textContent = 'Invalid format. Use EG-0000-0000';
+    if (currentLookupType === 'case' && !/^EG-[A-Za-z0-9_-]+$/i.test(normVal)) {
+      lookupError.textContent = 'Invalid Case ID format. (e.g. EG-2026-0001)';
       lookupError.style.display = 'block';
-      return;
+      return false;
     }
 
     try {
       EG.utils.showSpinner('Looking up...');
-      const qs = currentLookupType === 'ev' ? `?evidenceId=${encodeURIComponent(val)}` : `?caseId=${encodeURIComponent(val)}`;
+      const qs = currentLookupType === 'ev' ? `?evidenceId=${encodeURIComponent(normVal)}` : `?caseId=${encodeURIComponent(normVal)}`;
       const res = await EG.api.get(`/api/evidence/lookup${qs}`);
       
-      if (res.success) {
+      if (res.success && res.evidence) {
         currentEvidence = res.evidence;
         const nameEl = document.getElementById('infoName');
         if (nameEl) {
@@ -1148,67 +1346,126 @@ function initVerify() {
             nameEl.appendChild(demoBadge);
           }
         }
-        document.getElementById('infoType').textContent = currentEvidence.type;
-        document.getElementById('infoFile').textContent = currentEvidence.fileName;
-        document.getElementById('infoStatus').textContent = currentEvidence.status;
-        evidenceInfo.style.display = 'block';
+        const typeEl = document.getElementById('infoType');
+        if (typeEl) typeEl.textContent = currentEvidence.type || 'N/A';
+        const fileEl = document.getElementById('infoFile');
+        if (fileEl) fileEl.textContent = currentEvidence.fileName || 'N/A';
+        const statusEl = document.getElementById('infoStatus');
+        if (statusEl) statusEl.textContent = currentEvidence.status || 'N/A';
+        if (evidenceInfo) evidenceInfo.style.display = 'block';
         enableStep2();
+        return true;
       }
+      return false;
     } catch (err) {
       lookupError.textContent = err.message || 'Evidence not found.';
       lookupError.style.display = 'block';
+      return false;
     } finally {
       EG.utils.hideSpinner();
     }
-  });
+  };
+
+  // Lookup Evidence
+  if (lookupBtn) {
+    lookupBtn.addEventListener('click', async () => {
+      disableSteps2And3();
+      await performLookup();
+    });
+  }
 
   const disableSteps2And3 = () => {
-    step2.style.opacity = '0.5'; step2.style.pointerEvents = 'none';
-    step3.style.opacity = '0.5'; step3.style.pointerEvents = 'none';
-    vFileInfo.style.display = 'none';
+    if (step2) { step2.style.opacity = '1'; step2.style.pointerEvents = 'auto'; }
+    if (step3) { step3.style.opacity = '0.7'; step3.style.pointerEvents = 'auto'; }
+    if (vFileInfo) vFileInfo.style.display = 'none';
     selectedFile = null;
-    vFileInput.value = '';
-    resultCard.style.display = 'none';
-    historyCard.style.display = 'none';
+    if (vFileInput) vFileInput.value = '';
+    if (resultCard) resultCard.style.display = 'none';
+    if (historyCard) historyCard.style.display = 'none';
   };
 
   const enableStep2 = () => {
-    step2.style.opacity = '1'; step2.style.pointerEvents = 'auto';
+    if (step2) { step2.style.opacity = '1'; step2.style.pointerEvents = 'auto'; }
   };
 
   // Step 2: File upload
-  vFileDrop.addEventListener('click', () => vFileInput.click());
-  vFileDrop.addEventListener('dragover', e => { e.preventDefault(); vFileDrop.style.borderColor = '#64ffda'; });
-  vFileDrop.addEventListener('dragleave', e => { e.preventDefault(); vFileDrop.style.borderColor = '#8892b0'; });
-  vFileDrop.addEventListener('drop', e => {
-    e.preventDefault();
-    vFileDrop.style.borderColor = '#8892b0';
-    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-  });
-  vFileInput.addEventListener('change', e => {
-    if (e.target.files.length) handleFile(e.target.files[0]);
-  });
+  if (vFileDrop) {
+    vFileDrop.addEventListener('dragover', e => { e.preventDefault(); vFileDrop.style.borderColor = '#64ffda'; });
+    vFileDrop.addEventListener('dragleave', e => { e.preventDefault(); vFileDrop.style.borderColor = '#8892b0'; });
+    vFileDrop.addEventListener('drop', async e => {
+      e.preventDefault();
+      vFileDrop.style.borderColor = '#8892b0';
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        await handleFile(e.dataTransfer.files[0]);
+      }
+    });
+  }
+  if (vFileInput) {
+    vFileInput.addEventListener('change', async e => {
+      if (e.target && e.target.files && e.target.files.length) {
+        await handleFile(e.target.files[0]);
+      }
+    });
+  }
 
   const handleFile = async (file) => {
     selectedFile = file;
-    document.getElementById('vFileName').textContent = file.name;
-    document.getElementById('vFileSize').textContent = EG.utils.formatBytes(file.size);
-    vFileInfo.style.display = 'block';
+    if (!currentEvidence && lookupId && lookupId.value.trim()) {
+      await performLookup();
+    }
+
+    const vFileName = document.getElementById('vFileName');
+    const vFileSize = document.getElementById('vFileSize');
+    if (vFileName) vFileName.textContent = file.name;
+    if (vFileSize) vFileSize.textContent = EG.utils.formatBytes(file.size);
+    if (vFileInfo) vFileInfo.style.display = 'block';
     
     // Hash
-    vClientHash.textContent = 'Computing...';
+    if (vClientHash) vClientHash.textContent = 'Computing...';
     try {
       calculatedClientHash = await EG.utils.sha256File(file);
-      vClientHash.textContent = calculatedClientHash;
-      step3.style.opacity = '1'; step3.style.pointerEvents = 'auto';
+      if (vClientHash) vClientHash.textContent = calculatedClientHash || 'Will calculate on upload';
     } catch (e) {
-      vClientHash.textContent = 'Error computing hash';
+      if (vClientHash) vClientHash.textContent = 'Will calculate on upload';
+    } finally {
+      if (step3) {
+        step3.style.opacity = '1';
+        step3.style.pointerEvents = 'auto';
+      }
     }
   };
 
   // Verify
   verifyBtn.addEventListener('click', async () => {
-    if (!currentEvidence || !selectedFile) return;
+    if (verifyError) verifyError.style.display = 'none';
+
+    if (!selectedFile) {
+      if (verifyError) {
+        verifyError.textContent = 'Please select or drag an evidence file to verify in Step 2.';
+        verifyError.style.display = 'block';
+      }
+      return;
+    }
+
+    if (!currentEvidence) {
+      if (lookupId && lookupId.value.trim()) {
+        const found = await performLookup();
+        if (!found || !currentEvidence) {
+          if (verifyError) {
+            verifyError.textContent = 'Evidence not found for the specified ID. Please check Step 1.';
+            verifyError.style.display = 'block';
+          }
+          return;
+        }
+      } else {
+        if (verifyError) {
+          verifyError.textContent = 'Please enter an Evidence ID or Case ID in Step 1 first.';
+          verifyError.style.display = 'block';
+        }
+        if (lookupId) lookupId.focus();
+        return;
+      }
+    }
 
     verifyError.style.display = 'none';
     resultCard.style.display = 'none';
@@ -1216,15 +1473,52 @@ function initVerify() {
     verifyBtn.disabled = true;
 
     try {
-      EG.utils.showSpinner('Verifying with Blockchain Ledger...');
+      if (typeof EG.utils.showSpinner === 'function') {
+        EG.utils.showSpinner('Verifying evidence integrity...');
+      }
       
+      let clientHash = calculatedClientHash;
+      if (!clientHash && selectedFile) {
+        try {
+          clientHash = await EG.utils.sha256File(selectedFile);
+        } catch (_) {}
+      }
+
+      // 1. Attempt on-chain contract lookup (safely guarded)
+      let onChainRecord = null;
+      if (typeof EG !== 'undefined' && EG.web3 && typeof EG.web3.getEvidenceFromChain === 'function') {
+        try {
+          onChainRecord = await EG.web3.getEvidenceFromChain(currentEvidence.evidenceId);
+        } catch (chainErr) {
+          console.warn('Sepolia contract lookup note:', chainErr);
+        }
+      }
+
+      // 2. Perform backend verification
       const fd = new FormData();
       fd.append('file', selectedFile);
-      if (calculatedClientHash) fd.append('clientHash', calculatedClientHash);
+      if (clientHash) fd.append('clientHash', clientHash);
 
       const res = await EG.api.upload(`/api/evidence/${encodeURIComponent(currentEvidence.evidenceId)}/verify`, fd);
       
       if (res.success) {
+        // If on-chain record exists, compare with smart contract original hash
+        if (onChainRecord && onChainRecord.sha256Hash) {
+          const isMatchOnChain = clientHash ? (onChainRecord.sha256Hash.toLowerCase() === clientHash.toLowerCase()) : (onChainRecord.sha256Hash.toLowerCase() === (res.originalHash || '').toLowerCase());
+          res.originalHash = onChainRecord.sha256Hash;
+          if (clientHash) res.currentHash = clientHash;
+          res.result = isMatchOnChain ? 'VERIFIED' : 'TAMPERED';
+          res.onChainVerified = true;
+          res.contractAddress = onChainRecord.contractAddress || EG.web3?.contractConfig?.address;
+          res.uploaderWallet = onChainRecord.uploader;
+          res.network = 'Ethereum Sepolia Testnet';
+          res.chainWarning = '';
+        } else {
+          res.onChainVerified = false;
+          res.network = 'Backend / Off-Chain Ledger';
+          res.chainWarning = res.chainWarning || '';
+        }
+
         showResult(res);
         verifyBtn.style.display = 'none';
         resetBtn.style.display = 'block';
@@ -1238,7 +1532,9 @@ function initVerify() {
       verifyError.style.display = 'block';
     } finally {
       verifyBtn.disabled = false;
-      EG.utils.hideSpinner();
+      if (typeof EG.utils.hideSpinner === 'function') {
+        EG.utils.hideSpinner();
+      }
     }
   });
 
@@ -1274,17 +1570,19 @@ function initVerify() {
     resultCard.style.display = 'block';
     historyCard.style.display = 'block';
     
-    resultBadge.className = 'badge-result ' + (res.result === 'VERIFIED' ? 'verified' : 'tampered');
-    document.getElementById('rbIcon').textContent = res.result === 'VERIFIED' ? '✅' : '⚠️';
-    document.getElementById('rbTitle').textContent = res.result;
-    document.getElementById('rbDesc').textContent = res.result === 'VERIFIED' ? 
-      'Evidence integrity confirmed.' : 'Evidence hash does not match the registered hash.';
+    const isVerified = (res.result === 'VERIFIED');
+    resultBadge.className = 'badge-result ' + (isVerified ? 'verified' : 'tampered');
+    document.getElementById('rbIcon').textContent = isVerified ? '✅' : '⚠️';
+    document.getElementById('rbTitle').textContent = isVerified ? 'VERIFIED' : 'TAMPERED';
+    document.getElementById('rbDesc').textContent = isVerified ? 
+      'VERIFIED — Evidence integrity maintained on Ethereum Sepolia Testnet.' : 
+      'TAMPERED — Evidence has been modified! Current hash does not match original blockchain record.';
 
     document.getElementById('detEvId').textContent = res.evidenceId;
-    document.getElementById('detCaseId').textContent = res.caseId;
+    document.getElementById('detCaseId').textContent = res.caseId || 'N/A';
     document.getElementById('detResult').textContent = res.result;
-    document.getElementById('detBy').textContent = res.verifiedBy;
-    document.getElementById('detTime').textContent = new Date(res.verifiedAt).toLocaleString();
+    document.getElementById('detBy').textContent = res.verifiedBy || EG.web3.account || 'Inspector';
+    document.getElementById('detTime').textContent = new Date(res.verifiedAt || Date.now()).toLocaleString();
     document.getElementById('detOrigHash').textContent = res.originalHash;
     document.getElementById('detCurrHash').textContent = res.currentHash;
 
@@ -1402,7 +1700,7 @@ function initBlockchain() {
           // Arrow
           if (index < data.blocks.length - 1) {
              const arrow = document.createElement('div');
-             arrow.innerHTML = 'â¬‡ï¸';
+             arrow.innerHTML = '⬇️';
              arrow.style.cssText = 'text-align: center; font-size: 24px; margin-bottom: 20px; color: #888;';
              container.appendChild(arrow);
           }
@@ -1435,7 +1733,7 @@ function initBlockchain() {
             resDiv.style.backgroundColor = '#d4edda';
             resDiv.style.color = '#155724';
             resDiv.style.border = '1px solid #c3e6cb';
-            resDiv.innerHTML = `<strong>âœ… Blockchain is Valid!</strong><br>Checked ${data.blocksChecked} blocks successfully. All hashes match.`;
+            resDiv.innerHTML = `<strong>✅ Blockchain is Valid!</strong><br>Checked ${data.blocksChecked} blocks successfully. All hashes match.`;
           } else {
             resDiv.style.backgroundColor = '#f8d7da';
             resDiv.style.color = '#721c24';
@@ -1720,14 +2018,15 @@ function initUsers() {
     }
   }
 
-  // ── Modal helpers ──────────────────────────────────────────────────────────
   function openModal(id) {
+    if (window.openModal) return window.openModal(id);
     const m = document.getElementById(id);
-    if (m) m.style.display = 'flex';
+    if (m) { m.classList.add('active'); m.style.display = 'flex'; }
   }
   function closeModal(id) {
+    if (window.closeModal) return window.closeModal(id);
     const m = document.getElementById(id);
-    if (m) m.style.display = 'none';
+    if (m) { m.classList.remove('active'); m.style.display = 'none'; }
   }
 
   // ── Filters ────────────────────────────────────────────────────────────────
@@ -2083,7 +2382,7 @@ function initBlockchain() {
         EG.utils.toast('Validation failed: ' + (err.message || 'Error occurred'), 'error');
       } finally {
         validateBtn.disabled = false;
-        validateBtn.innerText = 'ðŸ” Validate Blockchain';
+        validateBtn.innerText = '🔍 Validate Blockchain';
       }
     });
   }
@@ -2236,7 +2535,7 @@ function initRecords() {
 
       const start = (page - 1) * limit + 1;
       const end = Math.min(page * limit, total);
-      if (recordsCount) recordsCount.textContent = `Showing ${start}â€“${end} of ${total} records`;
+      if (recordsCount) recordsCount.textContent = `Showing ${start}-${end} of ${total} records`;
 
       const isAdmin = user && user.role === 'ADMIN';
 
@@ -2253,11 +2552,21 @@ function initRecords() {
         
         const fullHash = item.hash || '';
         const shortHash = fullHash ? `${fullHash.slice(0, 10)}...${fullHash.slice(-6)}` : 'N/A';
+        const txHash = item.txHash || item.blockchainTxHash || (item.block && item.block.txHash);
+        const txLink = txHash ? `
+          <div style="margin-top:4px;">
+            <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" style="color:var(--accent-cyan); font-size:0.75rem; text-decoration:underline; font-weight:500;">
+              ⛓ Sepolia Tx ↗
+            </a>
+          </div>
+        ` : '';
+
         const hashHtml = fullHash ? `
           <span class="hash-pill" title="${escapeHtml(fullHash)}">
             <span>${escapeHtml(shortHash)}</span>
             <button type="button" class="btn-copy-sm copy-hash-btn" data-hash="${escapeHtml(fullHash)}">Copy</button>
           </span>
+          ${txLink}
         ` : 'N/A';
 
         const viewUrl = `evidence-details.html?id=${encodeURIComponent(item.evidenceId)}`;
@@ -2450,8 +2759,9 @@ function initRecords() {
   // Modal Flow
   const openDeleteModal = (evidenceId, evidenceName) => {
     pendingDeleteId = evidenceId;
+    console.log('[DELETE] Selected Evidence ID bound to modal:', pendingDeleteId);
     if (deleteEvidenceDisplay) {
-      deleteEvidenceDisplay.textContent = `${evidenceId} ("${evidenceName}")`;
+      deleteEvidenceDisplay.textContent = `${evidenceId}${evidenceName ? ` ("${evidenceName}")` : ''}`;
     }
     if (deleteReasonInput) {
       deleteReasonInput.value = '';
@@ -2466,13 +2776,26 @@ function initRecords() {
     }
     if (deleteModal) {
       deleteModal.classList.add('active');
+      deleteModal.style.display = 'flex';
       setTimeout(() => deleteReasonInput?.focus(), 50);
     }
   };
 
   const closeDeleteModal = () => {
     pendingDeleteId = null;
-    if (deleteModal) deleteModal.classList.remove('active');
+    if (deleteReasonInput) deleteReasonInput.value = '';
+    if (deleteReasonError) {
+      deleteReasonError.textContent = '';
+      deleteReasonError.style.display = 'none';
+    }
+    if (confirmDeleteBtn) {
+      confirmDeleteBtn.disabled = false;
+      confirmDeleteBtn.textContent = 'Delete Record';
+    }
+    if (deleteModal) {
+      deleteModal.classList.remove('active');
+      deleteModal.style.display = 'none';
+    }
   };
 
   if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', closeDeleteModal);
@@ -2483,13 +2806,27 @@ function initRecords() {
   }
 
   if (confirmDeleteBtn) {
-    confirmDeleteBtn.addEventListener('click', async () => {
-      if (!pendingDeleteId) return;
+    confirmDeleteBtn.addEventListener('click', async (e) => {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      if (!pendingDeleteId) {
+        console.error('[DELETE] Failed: No pendingDeleteId bound');
+        return;
+      }
 
       const reason = deleteReasonInput?.value?.trim() || '';
-      if (reason.length < 5 || reason.length > 300) {
+
+      if (reason.length < 5) {
         if (deleteReasonError) {
-          deleteReasonError.textContent = 'Please provide a valid deletion reason (between 5 and 300 characters).';
+          deleteReasonError.textContent = 'Deletion reason must be at least 5 characters.';
+          deleteReasonError.style.display = 'block';
+        }
+        deleteReasonInput?.focus();
+        return;
+      }
+
+      if (reason.length > 300) {
+        if (deleteReasonError) {
+          deleteReasonError.textContent = 'Deletion reason cannot exceed 300 characters.';
           deleteReasonError.style.display = 'block';
         }
         deleteReasonInput?.focus();
@@ -2497,6 +2834,11 @@ function initRecords() {
       }
 
       if (deleteReasonError) deleteReasonError.style.display = 'none';
+
+      console.log('[DELETE] Evidence ID:', pendingDeleteId);
+      console.log('[DELETE] Reason:', reason);
+      console.log('[DELETE] Delete request started');
+
       confirmDeleteBtn.disabled = true;
       confirmDeleteBtn.textContent = 'Deleting...';
 
@@ -2504,7 +2846,7 @@ function initRecords() {
         await EG.api.del(`/api/evidence/${encodeURIComponent(pendingDeleteId)}`, { reason });
         closeDeleteModal();
         EG.utils.toast(`Evidence record ${pendingDeleteId} has been soft-deleted and stored file removed.`, 'success');
-        fetchRecords();
+        if (typeof fetchRecords === 'function') fetchRecords();
       } catch (err) {
         console.error('[Delete Error]', err);
         if (deleteReasonError) {
@@ -2680,7 +3022,7 @@ function initEvidenceDetails() {
             EG.utils.toast(err.message || 'Failed to generate QR code', 'error');
           } finally {
             btnGenerateQr.disabled = false;
-            btnGenerateQr.textContent = 'ðŸ“± Generate QR';
+            btnGenerateQr.textContent = '📱 Generate QR';
           }
         };
       }
@@ -2794,7 +3136,7 @@ function initEvidenceDetails() {
           const vDate = EG.utils.formatDate(v.verifiedAt);
           const vResultBadge = `<span class="badge badge-${(v.result || '').toLowerCase()}">${escapeHtml(v.result || '')}</span>`;
           const fInfo = `${escapeHtml(v.submittedFileName || 'N/A')} (${EG.utils.formatBytes(v.submittedFileSize)})`;
-          const chainText = v.chainConsistent ? '<span style="color: var(--status-verified);">âœ… Consistent</span>' : '<span style="color: var(--status-tampered);">âŒ Broken</span>';
+          const chainText = v.chainConsistent ? '<span style="color: var(--status-verified);">✅ Consistent</span>' : '<span style="color: var(--status-tampered);">âŒ Broken</span>';
           const vUser = escapeHtml(v.verifiedByName || 'Unknown');
           const vIp = escapeHtml(v.ipAddress || 'unknown');
 
@@ -3719,7 +4061,7 @@ function initAudit() {
   if (btnValidateAudit && isAdmin) {
     btnValidateAudit.onclick = async () => {
       btnValidateAudit.disabled = true;
-      btnValidateAudit.textContent = 'ðŸ›¡ Validating Chain...';
+      btnValidateAudit.textContent = '🛡 Validating Chain...';
       try {
         const valRes = await EG.api.post('/api/audit/validate', {});
         if (validationResultCard) validationResultCard.style.display = 'block';
@@ -3727,7 +4069,7 @@ function initAudit() {
         if (valRes.valid) {
           brokenSeq = null;
           if (validationResultCard) validationResultCard.style.borderLeftColor = 'var(--status-verified)';
-          if (resultHeadline) resultHeadline.innerHTML = '<span style="color:var(--status-verified);">ðŸ›¡ AUDIT CHAIN: VALID</span>';
+          if (resultHeadline) resultHeadline.innerHTML = '<span style="color:var(--status-verified);">🛡 AUDIT CHAIN: VALID</span>';
           if (resultDetails) {
             resultDetails.innerHTML = `
               <div>Cryptographic hash-chain is completely intact. <strong>${valRes.entriesChecked}</strong> sequential records validated.</div>
@@ -3742,7 +4084,7 @@ function initAudit() {
         } else {
           brokenSeq = valRes.firstBrokenSeq;
           if (validationResultCard) validationResultCard.style.borderLeftColor = 'var(--status-tampered)';
-          if (resultHeadline) resultHeadline.innerHTML = '<span style="color:var(--status-tampered);">âš ï¸ AUDIT CHAIN: INTEGRITY BREACH DETECTED</span>';
+          if (resultHeadline) resultHeadline.innerHTML = '<span style="color:var(--status-tampered);">⚠️ AUDIT CHAIN: INTEGRITY BREACH DETECTED</span>';
           const issueMsg = valRes.issues && valRes.issues.length ? `${valRes.issues[0].check}: expected "${escapeHtml(valRes.issues[0].expected)}", got "${escapeHtml(valRes.issues[0].actual)}"` : 'Hash mismatch';
           if (resultDetails) {
             resultDetails.innerHTML = `
@@ -3762,7 +4104,7 @@ function initAudit() {
         EG.utils.toast(err.message || 'Validation failed', 'error');
       } finally {
         btnValidateAudit.disabled = false;
-        btnValidateAudit.textContent = 'ðŸ›¡ Validate Audit Chain';
+        btnValidateAudit.textContent = '🛡 Validate Audit Chain';
       }
     };
   }
@@ -3856,16 +4198,18 @@ function initAbout() {
 // ========================
 // ROUTER
 // ========================
-document.addEventListener('DOMContentLoaded', () => {
-  // â”€â”€ Sidebar / nav setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+document.addEventListener('DOMContentLoaded', async () => {
   EG.utils.initSidebar();
+  if (EG.web3 && typeof EG.web3.initWalletUI === 'function') {
+    EG.web3.initWalletUI();
+  }
 
-  // Populate sidebar user info
-  const user = EG.auth.getUser();
+  // Populate sidebar user info after awaiting auth check
+  const user = await EG.auth.getCurrentUser();
   const nameEl = document.getElementById('sidebarUserName');
   if (nameEl && user) nameEl.textContent = user.name;
   const roleEl = document.getElementById('sidebarUserRole');
-  if (roleEl && user) roleEl.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+  if (roleEl && user) roleEl.textContent = user.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()) : 'User';
 
   // â”€â”€ Active nav link â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const currentPage = location.pathname.split('/').pop() || 'index.html';

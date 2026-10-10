@@ -117,12 +117,7 @@ function signChallenge(privateKey, challengeText) {
 
   let server;
   let mongod;
-  let externalServer = false;
-
-  try {
-    const health = await request('GET', '/api/health');
-    if (health.status === 200) externalServer = true;
-  } catch (_) {}
+  const externalServer = Boolean(process.env.TEST_BASE_URL);
 
   const User = require('../models/User');
   const UserKey = require('../models/UserKey');

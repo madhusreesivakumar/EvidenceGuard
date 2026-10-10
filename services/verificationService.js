@@ -12,11 +12,22 @@ const { getNextSequence } = require('./idService');
 const AppError = require('../utils/AppError');
 
 const resolveEvidence = async (identifier, userOrOrgId = null) => {
-  const isEvId = /^EV-\d{4}$/.test(identifier);
-  const isCaseId = /^EG-\d{4}-\d{4}$/.test(identifier);
+  if (!identifier) {
+    const error = new Error('Identifier is required');
+    error.status = 400;
+    error.code = 'INVALID_ID';
+    throw error;
+  }
 
-  if (!isEvId && !isCaseId) {
-    const error = new Error('Invalid identifier format. Must be EV-0000 or EG-0000-0000');
+  const rawId = String(identifier).trim();
+  const cleanId = rawId.replace(/^EV[\s_]+/i, 'EV-').replace(/^EG[\s_]+/i, 'EG-');
+
+  const isEvId = /^EV-[A-Za-z0-9_-]+$/i.test(cleanId);
+  const isCaseId = /^EG-[A-Za-z0-9_-]+$/i.test(cleanId);
+  const isMongoId = /^[0-9a-fA-F]{24}$/.test(rawId);
+
+  if (!isEvId && !isCaseId && !isMongoId) {
+    const error = new Error('Invalid identifier format. Must be EV-0000, EG-0000-0000 or valid ID');
     error.status = 400;
     error.code = 'INVALID_ID';
     throw error;
@@ -24,9 +35,11 @@ const resolveEvidence = async (identifier, userOrOrgId = null) => {
 
   const query = { isDeleted: false };
   if (isEvId) {
-    query.evidenceId = identifier;
+    query.$or = [{ evidenceId: cleanId }, { evidenceId: new RegExp(`^${cleanId}$`, 'i') }, { evidenceId: rawId }];
+  } else if (isCaseId) {
+    query.$or = [{ caseId: cleanId }, { caseId: new RegExp(`^${cleanId}$`, 'i') }, { caseId: rawId }];
   } else {
-    query.caseId = identifier;
+    query._id = rawId;
   }
 
   const EvidenceModel = userOrOrgId ? scoped(Evidence, userOrOrgId) : unscoped(Evidence);
@@ -42,7 +55,7 @@ const resolveEvidence = async (identifier, userOrOrgId = null) => {
 };
 
 const compareHashes = (originalHash, submittedHash) => {
-  const isHex = (str) => typeof str === 'string' && /^[0-9a-f]{64}$/.test(str);
+  const isHex = (str) => typeof str === 'string' && /^[0-9a-fA-F]{64}$/.test(str);
   
   if (!isHex(originalHash) || !isHex(submittedHash)) {
     const error = new Error('Could not compute the file hash.');
@@ -52,8 +65,8 @@ const compareHashes = (originalHash, submittedHash) => {
   }
 
   try {
-    const origBuf = Buffer.from(originalHash, 'hex');
-    const subBuf = Buffer.from(submittedHash, 'hex');
+    const origBuf = Buffer.from(originalHash.toLowerCase(), 'hex');
+    const subBuf = Buffer.from(submittedHash.toLowerCase(), 'hex');
     return crypto.timingSafeEqual(origBuf, subBuf);
   } catch (err) {
     const error = new Error('Hash failure: Comparison error');

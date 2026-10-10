@@ -28,12 +28,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:      ["'self'"],
-      scriptSrc:       ["'self'"],
-      styleSrc:        ["'self'", "'unsafe-inline'"],   // inline style="" used widely; tracked as known limitation
-      imgSrc:          ["'self'", 'data:', 'blob:'],
+      scriptSrc:       ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+      styleSrc:        ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc:          ["'self'", 'data:', 'blob:', 'https://*.etherscan.io'],
       mediaSrc:        ["'self'", 'blob:'],
-      fontSrc:         ["'self'"],
-      connectSrc:      ["'self'"],
+      fontSrc:         ["'self'", "https://fonts.gstatic.com"],
+      connectSrc:      ["'self'", "https://rpc.sepolia.org", "https://ethereum-sepolia-rpc.publicnode.com", "https://*.etherscan.io", "https://*.infura.io", "https://*.alchemy.com", "wss://*", "http://127.0.0.1:*", "http://localhost:*"],
       objectSrc:       ["'none'"],
       baseUri:         ["'self'"],
       formAction:      ["'self'"],

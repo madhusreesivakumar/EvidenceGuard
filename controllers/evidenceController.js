@@ -34,7 +34,11 @@ const uploadEvidence = async (req, res, next) => {
     return res.status(500).json({ success: false, code: 'HASH_FAILURE', message: 'Could not compute the file hash.' });
   }
 
-  const { clientHash, name, type, description, isDemo } = req.body;
+  const clientHash = req.body.clientHash;
+  const name = req.body.name || req.body.evidenceName;
+  const type = req.body.type || req.body.evidenceType;
+  const description = req.body.description;
+  const isDemo = req.body.isDemo;
 
   if (clientHash && clientHash.toLowerCase() !== serverHash) {
     fs.unlink(tempPath, () => {});
@@ -367,14 +371,16 @@ const getEvidenceDetails = async (req, res, next) => {
     
     const isEvId = /^EV-\d{4}$/.test(identifier);
     const isCaseId = /^EG-\d{4}-\d{4}$/.test(identifier);
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(identifier);
     
-    if (!isEvId && !isCaseId) {
-      return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid identifier format. Must be EV-0000 or EG-0000-0000' });
+    if (!isEvId && !isCaseId && !isMongoId) {
+      return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid identifier format. Must be EV-0000, EG-0000-0000 or valid ID' });
     }
     
     const query = { isDeleted: false };
     if (isEvId) query.evidenceId = identifier;
-    else query.caseId = identifier;
+    else if (isCaseId) query.caseId = identifier;
+    else query._id = identifier;
     
     const ScopedEvidence = scoped(Evidence, req.user);
     const evidence = await ScopedEvidence.findOne(query)
@@ -387,7 +393,9 @@ const getEvidenceDetails = async (req, res, next) => {
     }
     
     evidence.uploadedByName = evidence.uploadedBy ? evidence.uploadedBy.name : null;
-    delete evidence.uploadedBy;
+    if (evidence.uploadedByName && !evidence.uploadedBy) {
+      evidence.uploadedBy = { name: evidence.uploadedByName };
+    }
     
     if (evidence.blockNumber != null) {
       const Block = require('../models/Block');
@@ -416,7 +424,7 @@ const getEvidenceDetails = async (req, res, next) => {
       lastVerifiedAt: lastVerification ? lastVerification.verifiedAt : null
     };
     
-    res.json({ success: true, data: evidence });
+    res.json({ success: true, evidence, data: evidence });
   } catch (err) {
     next(err);
   }
@@ -425,8 +433,11 @@ const getEvidenceDetails = async (req, res, next) => {
 const deleteEvidence = async (req, res, next) => {
   try {
     const evidenceId = req.params.id;
-    if (!evidenceId || typeof evidenceId !== 'string' || !/^EV-\d{4}$/.test(evidenceId)) {
-      return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid evidence ID format. Must be EV-0000' });
+    const isEvId = /^EV-\d{4,}$/i.test(evidenceId);
+    const isCaseId = /^EG-\d{4}-\d{4}$/i.test(evidenceId);
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(evidenceId);
+    if (!evidenceId || typeof evidenceId !== 'string' || (!isEvId && !isCaseId && !isMongoId)) {
+      return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'Invalid evidence ID format' });
     }
 
     const { reason } = req.body;
@@ -437,9 +448,14 @@ const deleteEvidence = async (req, res, next) => {
     const trimmedReason = reason.trim();
     const ScopedEvidence = scoped(Evidence, req.user);
 
+    const deleteQuery = { isDeleted: false };
+    if (isEvId) deleteQuery.evidenceId = evidenceId;
+    else if (isCaseId) deleteQuery.caseId = evidenceId;
+    else deleteQuery._id = evidenceId;
+
     // Atomic update matching isDeleted false
     const evidence = await ScopedEvidence.findOneAndUpdate(
-      { evidenceId, isDeleted: false },
+      deleteQuery,
       {
         $set: {
           isDeleted: true,
@@ -533,6 +549,7 @@ const generateQr = async (req, res, next) => {
       caseId: evidence.caseId,
       url: targetUrl,
       pngDataUrl,
+      qrCodeUrl: pngDataUrl,
       svg
     });
   } catch (err) {
@@ -600,11 +617,57 @@ const downloadEvidence = async (req, res, next) => {
   }
 };
 
+const anchorEvidence = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { txHash, blockNumber, contractAddress, uploaderWallet, network } = req.body;
+    const ScopedEvidence = scoped(Evidence, req.user);
+
+    const evidence = await ScopedEvidence.findOne({
+      $or: [{ evidenceId: id }, { _id: mongoose.Types.ObjectId.isValid(id) ? id : null }],
+      isDeleted: false
+    });
+
+    if (!evidence) {
+      return res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Evidence not found' });
+    }
+
+    evidence.status = 'Verified';
+    if (txHash) evidence.txHash = txHash;
+    if (blockNumber) evidence.blockNumber = Number(blockNumber);
+    if (contractAddress) evidence.contractAddress = contractAddress;
+    if (uploaderWallet) evidence.uploaderWallet = uploaderWallet;
+    if (network) evidence.network = network;
+    evidence.verifiedAt = new Date();
+
+    await evidence.save();
+
+    await logEvent({
+      action: 'ANCHOR',
+      user: req.user,
+      evidenceId: evidence.evidenceId,
+      caseId: evidence.caseId,
+      description: `Evidence ${evidence.evidenceId} anchored on ${network || 'Sepolia'} (Tx: ${txHash})`,
+      orgId: evidence.orgId,
+      req
+    });
+
+    return res.json({
+      success: true,
+      message: 'Evidence anchored successfully',
+      evidence
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   uploadEvidence,
   listEvidence,
   getEvidenceDetails,
   deleteEvidence,
   generateQr,
-  downloadEvidence
+  downloadEvidence,
+  anchorEvidence
 };

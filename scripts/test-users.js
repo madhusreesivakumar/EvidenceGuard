@@ -14,7 +14,8 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-let BASE = process.env.TEST_BASE_URL || 'http://localhost:3000';
+let BASE = process.env.TEST_BASE_URL || null;
+const externalServer = Boolean(process.env.TEST_BASE_URL);
 
 // --- HTTP helper --------------------------------------------------------------
 

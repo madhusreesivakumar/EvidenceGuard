@@ -89,16 +89,14 @@
         <div class="logo-icon">🔐</div> EvidenceGuard
       </div>
       <nav class="sidebar-nav">
-        <a href="dashboard.html" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
-        <a href="upload.html" class="nav-item"><span class="nav-icon">⬆</span> Upload Evidence</a>
-        <a href="records.html" class="nav-item"><span class="nav-icon">🗂</span> Evidence Records</a>
-        <a href="verify.html" class="nav-item active"><span class="nav-icon">✅</span> Verify Evidence</a>
-        <a href="blockchain.html" class="nav-item"><span class="nav-icon">⛓</span> Blockchain</a>
-        <a href="audit.html" class="nav-item"><span class="nav-icon">📋</span> Audit Trail</a>
-        <a href="custody.html" class="nav-item investigator-only"><span class="nav-icon">🤝</span> Custody Ledger</a>
-        <a href="keys.html" class="nav-item"><span class="nav-icon">🔑</span> Digital Keys</a>
-        <a href="users.html" class="nav-item"><span class="nav-icon">👥</span> Users</a>
-        <a href="about.html" class="nav-item"><span class="nav-icon">ℹ️</span> About</a>
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">&#9700;</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">&#8679;</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">&#9776;</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">&#10003;</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon">&#9741;</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">&#9741;</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">&#9786;</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">&#9432;</span> About</a>
       </nav>
       <div class="sidebar-footer">
         <div id="sidebarUserName" style="font-weight:bold;">User</div>
@@ -196,24 +194,25 @@
               </div>
             </div>
 
-            <div class="step-card" id="step2" style="opacity:0.5; pointer-events:none;">
+            <div class="step-card" id="step2">
               <div class="step-header"><span>2</span> Upload File to Verify</div>
               
-              <div id="vFileDrop" style="border: 2px dashed #8892b0; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: all 0.3s;">
+              <div id="vFileDrop" class="file-drop" style="position: relative; border: 2px dashed rgba(100, 255, 218, 0.4); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: all 0.3s; background: rgba(0,0,0,0.2);">
                 <div style="font-size: 2rem; margin-bottom: 10px;">📄</div>
-                <div>Click or drag file here</div>
-                <input type="file" id="vFileInput" aria-label="Upload File to Verify" style="display: none;">
+                <div style="color: #64ffda; font-weight: 500; margin-bottom: 4px;">Click or drag file here to verify</div>
+                <div style="font-size: 0.8rem; color: #8892b0;">Supports any evidence file format</div>
+                <input type="file" id="vFileInput" aria-label="Upload File to Verify" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
               </div>
               
-              <div id="vFileInfo" style="margin-top: 15px; display: none;">
-                <div style="font-size:0.9rem;"><strong>File:</strong> <span id="vFileName"></span> (<span id="vFileSize"></span>)</div>
+              <div id="vFileInfo" style="margin-top: 15px; display: none; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px; border: 1px solid rgba(100, 255, 218, 0.2);">
+                <div style="font-size:0.9rem; color: #fff;"><strong>File:</strong> <span id="vFileName" style="color: #64ffda;"></span> (<span id="vFileSize"></span>)</div>
                 <div style="font-size:0.85rem; color:#8892b0; margin-top:5px; font-family:monospace; word-break:break-all;">
-                  <strong>Calculated in your browser (preview):</strong> <span id="vClientHash"></span>
+                  <strong>Calculated SHA-256 (Browser Preview):</strong> <span id="vClientHash" style="color: #64ffda;"></span>
                 </div>
               </div>
             </div>
 
-            <div class="step-card" id="step3" style="opacity:0.5; pointer-events:none;">
+            <div class="step-card" id="step3">
               <div class="step-header"><span>3</span> Complete Verification</div>
               <button class="btn btn-primary w-100" id="verifyBtn" style="padding:15px; font-size:1.1rem;">🔍 Verify Evidence</button>
               <button class="btn btn-outline w-100" id="resetBtn" style="margin-top:10px; display:none;">Verify Another File</button>

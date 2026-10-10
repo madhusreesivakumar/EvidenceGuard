@@ -61,16 +61,14 @@
         <div class="logo-icon">ðŸ”</div> EvidenceGuard
       </div>
       <nav class="sidebar-nav">
-        <a href="dashboard.html" class="nav-item"><span class="nav-icon">ðŸ“Š</span> Dashboard</a>
-        <a href="upload.html" class="nav-item"><span class="nav-icon">â¬†</span> Upload Evidence</a>
-        <a href="records.html" class="nav-item"><span class="nav-icon">ðŸ—‚</span> Evidence Records</a>
-        <a href="verify.html" class="nav-item"><span class="nav-icon">âœ…</span> Verify Evidence</a>
-        <a href="blockchain.html" class="nav-item"><span class="nav-icon">â›“</span> Blockchain</a>
-        <a href="audit.html" class="nav-item"><span class="nav-icon">📋</span> Audit Trail</a>
-        <a href="custody.html" class="nav-item investigator-only"><span class="nav-icon">🤝</span> Custody Ledger</a>
-        <a href="keys.html" class="nav-item"><span class="nav-icon">🔑</span> Digital Keys</a>
-        <a href="users.html" class="nav-item"><span class="nav-icon">ðŸ‘¥</span> Users</a>
-        <a href="about.html" class="nav-item"><span class="nav-icon">â„¹ï¸</span> About</a>
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">&#9700;</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">&#8679;</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">&#9776;</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">&#10003;</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon">&#9741;</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">&#9741;</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">&#9786;</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">&#9432;</span> About</a>
       </nav>
       <div class="sidebar-footer">
         <div id="sidebarUserName" style="font-weight:bold;"></div>
@@ -99,7 +97,7 @@
         <div class="two-col" id="uploadInterface">
           <div class="card glass-card">
             <h3 style="margin-top: 0;">Evidence Details</h3>
-            <form id="uploadForm">
+            <form id="uploadForm" onsubmit="event.preventDefault();">
               <div style="margin-bottom: 15px;">
                 <label for="evidenceName" style="display:block; margin-bottom:5px;">Evidence Name *</label>
                 <input type="text" id="evidenceName" required minlength="2" maxlength="120" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); color: white;">
@@ -167,20 +165,28 @@
           </div>
         </div>
         
-        <div id="successPanel" class="card glass-card hidden" style="max-width: 600px; margin: 0 auto; text-align: center;">
-          <h2 style="color: var(--status-verified);">âœ… Upload Successful</h2>
-          <p>The evidence has been securely hashed and recorded.</p>
+        <div id="successPanel" class="card glass-card hidden" style="max-width: 650px; margin: 0 auto; text-align: center;">
+          <h2 style="color: var(--status-verified);">✅ Evidence Uploaded & Registered</h2>
+          <p style="color: var(--text-muted); font-size: 0.9rem;">The digital evidence SHA-256 hash has been anchored to Ethereum Sepolia Testnet.</p>
           
-          <div style="text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 4px; margin: 20px 0;">
-            <div style="margin-bottom: 10px;"><strong>Evidence ID:</strong> <span id="resEvId"></span></div>
-            <div style="margin-bottom: 10px;"><strong>Case ID:</strong> <span id="resCaseId"></span></div>
-            <div style="margin-bottom: 10px;"><strong>Status:</strong> <span class="badge" style="background:var(--status-pending);color:white;">Pending</span></div>
-            <div><strong>SHA-256 Hash:</strong> <br><span id="resHash" style="font-family: monospace; color: var(--status-verified); word-break: break-all;"></span></div>
+          <div style="text-align: left; background: rgba(0,0,0,0.25); padding: 18px; border-radius: 6px; margin: 20px 0; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="margin-bottom: 8px;"><strong>Evidence ID:</strong> <span id="resEvId" style="font-weight:bold; color:white;"></span></div>
+            <div style="margin-bottom: 8px;"><strong>Case ID:</strong> <span id="resCaseId"></span></div>
+            <div style="margin-bottom: 8px;"><strong>SHA-256 Hash:</strong> <br><span id="resHash" style="font-family: monospace; color: var(--status-verified); word-break: break-all; font-size:0.85rem;"></span></div>
+            
+            <div style="margin-top: 12px; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 12px;">
+              <div style="font-weight:bold; color:var(--accent-cyan); margin-bottom:6px;">⛓ Ethereum Sepolia Blockchain Record</div>
+              <div style="margin-bottom: 6px;"><strong>Transaction Hash:</strong> <br><span id="resTxHash" style="font-family: monospace; color: var(--accent-cyan); word-break: break-all; font-size:0.82rem;">Pending MetaMask approval</span></div>
+              <div style="margin-bottom: 6px;"><strong>Block Number:</strong> <span id="resBlockNum" style="font-weight:bold;">Pending</span></div>
+              <div style="margin-bottom: 6px;"><strong>Uploader Wallet:</strong> <span id="resUploader" style="font-family:monospace; font-size:0.85rem;">Not connected</span></div>
+              <div style="margin-bottom: 6px;"><strong>Network:</strong> <span class="badge badge-verified">Ethereum Sepolia Testnet</span></div>
+              <div><strong>Block Explorer:</strong> <a id="resExplorerLink" href="#" target="_blank" style="color:var(--accent-cyan); text-decoration:underline; font-size:0.85rem;">View on Sepolia Etherscan ↗</a></div>
+            </div>
           </div>
           
           <div style="display: flex; gap: 15px; justify-content: center;">
-            <a href="evidence-details.html" id="viewDetailsLink" class="btn btn-primary">View Details</a>
-            <button class="btn btn-secondary" id="btnUploadAnother">Upload Another</button>
+            <a href="records.html" class="btn btn-primary">View in Records</a>
+            <button class="btn btn-secondary" id="btnUploadAnother">Upload Another File</button>
           </div>
         </div>
 

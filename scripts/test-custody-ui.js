@@ -115,13 +115,9 @@ async function runTests() {
 
   // --- [2] Server End-to-End API Integration ---
   console.log('\n--- [2] Live API Testing (In-Memory Server) ---');
-  let mongod = null;
-  if (!process.env.MONGODB_URI) {
-    mongod = await MongoMemoryServer.create();
-    process.env.MONGODB_URI = mongod.getUri();
-  }
-
-  await mongoose.connect(process.env.MONGODB_URI);
+  let mongod = await MongoMemoryServer.create();
+  const mongoUri = mongod.getUri();
+  await mongoose.connect(mongoUri);
   await ensureGenesis();
 
   const app = require('../server');

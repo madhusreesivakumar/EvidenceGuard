@@ -59,7 +59,7 @@ async function runTests() {
       passwordHash: pwdHash,
       role: 'ADMIN'
     });
-    const adminToken = generateToken(admin._id, admin.role);
+    const adminToken = await generateToken(admin._id, admin.role);
 
     const investigator = await User.create({
       name: 'Detective Miller',
@@ -67,7 +67,7 @@ async function runTests() {
       passwordHash: pwdHash,
       role: 'INVESTIGATOR'
     });
-    const investigatorToken = generateToken(investigator._id, investigator.role);
+    const investigatorToken = await generateToken(investigator._id, investigator.role);
 
     const viewer = await User.create({
       name: 'Auditor Viewer',
@@ -75,7 +75,7 @@ async function runTests() {
       passwordHash: pwdHash,
       role: 'VIEWER'
     });
-    const viewerToken = generateToken(viewer._id, viewer.role);
+    const viewerToken = await generateToken(viewer._id, viewer.role);
 
     // Populate multiple audit events across different actions, users, and cases
     console.log('Populating sample audit logs...');

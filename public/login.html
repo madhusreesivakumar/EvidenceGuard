@@ -15,14 +15,14 @@
         <div class="logo-icon">ðŸ”</div> EvidenceGuard
       </div>
       <nav class="sidebar-nav">
-        <a href="dashboard.html" class="nav-item"><span class="nav-icon">ðŸ“Š</span> Dashboard</a>
-        <a href="upload.html" class="nav-item"><span class="nav-icon">â¬†</span> Upload Evidence</a>
-        <a href="records.html" class="nav-item"><span class="nav-icon">ðŸ—‚</span> Evidence Records</a>
-        <a href="verify.html" class="nav-item"><span class="nav-icon">âœ…</span> Verify Evidence</a>
-        <a href="blockchain.html" class="nav-item"><span class="nav-icon">â›“</span> Blockchain</a>
-        <a href="audit.html" class="nav-item"><span class="nav-icon">ðŸ“‹</span> Audit Trail</a>
-        <a href="users.html" class="nav-item"><span class="nav-icon">ðŸ‘¥</span> Users</a>
-        <a href="about.html" class="nav-item"><span class="nav-icon">â„¹ï¸</span> About</a>
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">&#9700;</span> Dashboard</a>
+        <a href="upload.html" class="nav-item"><span class="nav-icon">&#8679;</span> Upload Evidence</a>
+        <a href="records.html" class="nav-item"><span class="nav-icon">&#9776;</span> Evidence Records</a>
+        <a href="verify.html" class="nav-item"><span class="nav-icon">&#10003;</span> Verify Evidence</a>
+        <a href="blockchain.html" class="nav-item"><span class="nav-icon">&#9741;</span> Blockchain</a>
+        <a href="audit.html" class="nav-item"><span class="nav-icon">&#9741;</span> Audit Trail</a>
+        <a href="users.html" class="nav-item"><span class="nav-icon">&#9786;</span> Users</a>
+        <a href="about.html" class="nav-item"><span class="nav-icon">&#9432;</span> About</a>
       </nav>
       <div class="sidebar-footer">
         <div id="sidebarUserName" style="font-weight:bold;"></div>
@@ -51,7 +51,7 @@
           <div id="errorMsg" style="color: var(--status-tampered); margin-bottom: 15px; text-align: center; display: none;"></div>
           <form id="loginForm">
             <div style="margin-bottom: 15px;">
-              <label for="email" style="display: block; margin-bottom: 5px;">Email</label>
+              <label for="email" style="display: block; margin-bottom: 5px;">Email / Username</label>
               <input type="email" id="email" required style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); color: white;">
             </div>
             <div style="margin-bottom: 20px;">
@@ -63,6 +63,15 @@
             </div>
             <button type="submit" id="loginBtn" class="btn btn-primary" style="width: 100%; justify-content: center;">Login</button>
           </form>
+
+          <div style="margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 15px;">
+            <div style="font-size: 0.82rem; color: var(--text-muted); text-align: center; margin-bottom: 10px;">⚡ Quick Demo Login Shortcuts:</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button type="button" class="btn btn-secondary" id="quickAdminBtn" style="font-size: 0.85rem; justify-content: center;">🔑 Login as Admin (admin@eg.local)</button>
+              <button type="button" class="btn btn-secondary" id="quickInvestBtn" style="font-size: 0.85rem; justify-content: center;">🕵️ Login as Investigator (invest@eg.local)</button>
+            </div>
+          </div>
+
           <div style="text-align: center; margin-top: 20px;">
             <a href="register.html" style="color: var(--accent); text-decoration: none;">Don't have an account? Register</a>
           </div>

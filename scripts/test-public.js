@@ -113,6 +113,13 @@ async function run() {
     const deletedCaseId = upJson2.evidence.caseId;
     const deletedPublicToken = upJson2.evidence.publicToken;
 
+    // Soft delete second item
+    await fetch(`${baseUrl}/api/evidence/${deletedEvId}`, {
+      method: 'DELETE',
+      headers: { Cookie: adminCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Test soft delete for public verify test' })
+    });
+
     await fetch(`${baseUrl}/api/evidence/${deletedEvId}`, {
       method: 'DELETE',
       headers: { Cookie: adminCookie, 'Content-Type': 'application/json' },

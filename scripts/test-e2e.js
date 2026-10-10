@@ -125,12 +125,14 @@ function buildMultipart(fields, fileBuffer, fileName) {
 
   let server;
   let mongod;
-  let externalServer = false;
+  let externalServer = Boolean(process.env.TEST_BASE_URL);
 
-  try {
-    const health = await request('GET', '/api/health');
-    if (health.status === 200) externalServer = true;
-  } catch (_) {}
+  if (externalServer) {
+    try {
+      const health = await request('GET', '/api/health');
+      if (health.status !== 200) externalServer = false;
+    } catch (_) { externalServer = false; }
+  }
 
   process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-e2e-workflow-jwt-secret-key-32chars!';
   process.env.STORAGE_DRIVER = 'local';
@@ -354,7 +356,7 @@ function buildMultipart(fields, fileBuffer, fileName) {
     console.log(`  ✅ QR Code generated successfully: ${qrRes.body.url}`);
 
     // Public verification without login
-    const pubRes = await request('GET', `/api/public/verify/${evidenceData.caseId}`);
+    const pubRes = await request('GET', `/api/public/verify/${evidenceData.publicToken}`);
     if (pubRes.status !== 200 || !pubRes.body.caseId) {
       throw new Error(`Public verification endpoint failed: ${JSON.stringify(pubRes.body)}`);
     }

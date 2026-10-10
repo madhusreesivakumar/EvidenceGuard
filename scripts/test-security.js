@@ -93,14 +93,7 @@ function extractCookie(rawCookies) {
   let mongod;
   let baseUrl = process.env.TEST_BASE_URL || null;
 
-  // Check if external server is reachable
-  let externalServer = false;
-  if (baseUrl) {
-    try {
-      const r = await request(baseUrl, 'GET', '/api/health');
-      if (r.status === 200) externalServer = true;
-    } catch (_) {}
-  }
+  const externalServer = Boolean(process.env.TEST_BASE_URL);
 
   const User = require('../models/User');
   const Evidence = require('../models/Evidence');

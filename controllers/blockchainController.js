@@ -37,6 +37,7 @@ const getBlocks = async (req, res, next) => {
 
     res.json({
       success: true,
+      blocks: blocksWithFlag,
       data: blocksWithFlag,
       meta: {
         total,

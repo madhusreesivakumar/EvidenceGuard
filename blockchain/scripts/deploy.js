@@ -2,13 +2,10 @@
 
 /**
  * blockchain/scripts/deploy.js
- * Sprint 10A – EvidenceAnchor Deployment Script
- *
- * Deploys EvidenceAnchor contract, writes deployment.json, and optionally
- * verifies contract source on Etherscan/block explorer.
+ * Deployment Script for EvidenceRegistry Smart Contract
  */
 
-const { ethers, network, run } = require('hardhat');
+const { ethers, network } = require('hardhat');
 const fs = require('fs');
 const path = require('path');
 
@@ -25,20 +22,19 @@ async function main() {
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log(`Balance:     ${ethers.formatEther(balance)} ETH`);
 
-  console.log('\nDeploying EvidenceAnchor...');
-  const EvidenceAnchor = await ethers.getContractFactory('EvidenceAnchor');
-  const anchorContract = await EvidenceAnchor.deploy(deployer.address);
-  await anchorContract.waitForDeployment();
+  console.log('\nDeploying EvidenceRegistry contract...');
+  const EvidenceRegistry = await ethers.getContractFactory('EvidenceRegistry');
+  const contract = await EvidenceRegistry.deploy();
+  await contract.waitForDeployment();
 
-  const contractAddress = await anchorContract.getAddress();
-  const deployTx = anchorContract.deploymentTransaction();
+  const contractAddress = await contract.getAddress();
+  const deployTx = contract.deploymentTransaction();
   const receipt = await deployTx.wait();
   const deployBlock = receipt.blockNumber;
 
-  console.log(`✅ EvidenceAnchor deployed to: ${contractAddress}`);
+  console.log(`✅ EvidenceRegistry deployed to: ${contractAddress}`);
   console.log(`   Transaction hash:          ${deployTx.hash}`);
   console.log(`   Block number:              ${deployBlock}`);
-  console.log(`   Gas used:                  ${receipt.gasUsed.toString()}`);
 
   const deploymentData = {
     address: contractAddress,
@@ -50,23 +46,25 @@ async function main() {
     deployedAt: new Date().toISOString()
   };
 
+  // Write deployment.json in blockchain folder
   const deploymentPath = path.join(__dirname, '..', 'deployment.json');
   fs.writeFileSync(deploymentPath, JSON.stringify(deploymentData, null, 2));
-  console.log(`\nDeployment details written to: ${deploymentPath}`);
+  console.log(`\nDeployment info written to: ${deploymentPath}`);
 
-  // Optional verification on block explorer
-  if (networkName !== 'hardhat' && networkName !== 'localhost' && process.env.ETHERSCAN_API_KEY) {
-    console.log('\nWaiting for 5 block confirmations before explorer verification...');
-    await deployTx.wait(5);
-    try {
-      await run('verify:verify', {
-        address: contractAddress,
-        constructorArguments: [deployer.address]
-      });
-      console.log('✅ Source code successfully verified on explorer.');
-    } catch (verifyErr) {
-      console.warn('⚠️ Explorer verification note:', verifyErr.message);
-    }
+  // Write contract address & ABI to public folder for frontend consumption
+  const artifactPath = path.join(__dirname, '..', 'artifacts', 'contracts', 'EvidenceRegistry.sol', 'EvidenceRegistry.json');
+  if (fs.existsSync(artifactPath)) {
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+    const frontendContractConfig = {
+      address: contractAddress,
+      network: networkName,
+      chainId: Number(chainId),
+      abi: artifact.abi
+    };
+    
+    const publicConfigPath = path.join(__dirname, '..', '..', 'public', 'contract-config.json');
+    fs.writeFileSync(publicConfigPath, JSON.stringify(frontendContractConfig, null, 2));
+    console.log(`Frontend contract configuration written to: ${publicConfigPath}`);
   }
 
   console.log('\n======================================================================');

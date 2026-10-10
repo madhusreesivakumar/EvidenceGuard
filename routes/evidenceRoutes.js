@@ -12,11 +12,21 @@ router.get('/',
   evidenceController.listEvidence
 );
 
+// Middleware to normalize field names from upload form
+const normalizeUploadBody = (req, res, next) => {
+  if (req.body) {
+    if (!req.body.name && req.body.evidenceName) req.body.name = req.body.evidenceName;
+    if (!req.body.type && req.body.evidenceType) req.body.type = req.body.evidenceType;
+  }
+  next();
+};
+
 // POST /api/evidence
 router.post('/',
   authenticate,
   authorizeAction('upload'),
   uploadMiddleware,
+  normalizeUploadBody,
   [
     body('name').isString().trim().isLength({ min: 2, max: 120 }).withMessage('Name must be between 2 and 120 characters'),
     body('type').isIn(['Image', 'Video', 'Audio', 'Document', 'PDF', 'Other']).withMessage('Invalid evidence type'),
@@ -140,6 +150,13 @@ router.get('/:id/download',
   authenticate,
   authorizeAction('view'),
   evidenceController.downloadEvidence
+);
+
+// POST /api/evidence/:id/anchor
+router.post('/:id/anchor',
+  authenticate,
+  authorizeAction('upload'),
+  evidenceController.anchorEvidence
 );
 
 // GET /api/evidence/:id (Must be after lookup and sub-paths)

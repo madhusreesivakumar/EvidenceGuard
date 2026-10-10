@@ -71,7 +71,7 @@ async function runTests() {
       passwordHash: pwdHash,
       role: 'ADMIN'
     });
-    const adminToken = generateToken(admin._id, admin.role);
+    const adminToken = await generateToken(admin._id, admin.role);
 
     const investigator = await User.create({
       name: 'Investigator User',
@@ -79,7 +79,7 @@ async function runTests() {
       passwordHash: pwdHash,
       role: 'INVESTIGATOR'
     });
-    const investigatorToken = generateToken(investigator._id, investigator.role);
+    const investigatorToken = await generateToken(investigator._id, investigator.role);
 
     const viewer = await User.create({
       name: 'Viewer User',
@@ -87,7 +87,7 @@ async function runTests() {
       passwordHash: pwdHash,
       role: 'VIEWER'
     });
-    const viewerToken = generateToken(viewer._id, viewer.role);
+    const viewerToken = await generateToken(viewer._id, viewer.role);
 
     // 1. Unauthenticated request to /api/dashboard/stats -> 401
     {

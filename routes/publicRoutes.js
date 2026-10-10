@@ -25,8 +25,8 @@ function formatPublicPayload(evidence) {
     registeredAt: evidence.createdAt,
     status: evidence.status,
     statusAsOf: evidence.verifiedAt || null,
-    isDemo: evidence.isDemo || false,
-    note: 'Status shows the result of the most recent verification. It is not a live check of any file.'
+    note: 'Status shows the result of the most recent verification. It is not a live check of any file.',
+    isDemo: evidence.isDemo || false
   };
 }
 

@@ -64,7 +64,7 @@ const verifyEvidence = async (req, res, next) => {
     fs.unlinkSync(file.path);
     fileDeleted = true;
 
-    if (clientHash && clientHash !== serverHash) {
+    if (clientHash && clientHash.toLowerCase() !== serverHash.toLowerCase()) {
       return res.status(422).json({
         success: false,
         code: 'HASH_MISMATCH_UPLOAD',
